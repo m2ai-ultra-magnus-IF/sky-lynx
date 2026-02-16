@@ -25,6 +25,7 @@ class Recommendation(BaseModel):
     reversibility: str  # high, medium, low
     target_system: str = "claude_md"  # persona | claude_md | pipeline
     target_persona: str | None = None
+    target_department: str | None = None
     recommendation_type: str = "other"  # voice_adjustment | framework_addition | etc.
 
 
@@ -129,6 +130,49 @@ Output structure:
 """
 
 
+def _load_department_context() -> str:
+    """Load department definitions from Academy for context in analysis.
+
+    Returns:
+        Formatted department context string, or empty string if not available.
+    """
+    departments_dir = (
+        Path.home()
+        / "projects"
+        / "agent-persona-academy"
+        / "departments"
+    )
+
+    if not departments_dir.exists():
+        return ""
+
+    parts = ["## Academy Departments", ""]
+    for dept_dir in sorted(departments_dir.iterdir()):
+        dept_file = dept_dir / "department.yaml"
+        if not dept_file.exists():
+            continue
+        try:
+            with open(dept_file) as f:
+                dept = yaml.safe_load(f)
+            identity = dept.get("identity", {})
+            personas = dept.get("personas", [])
+            policy = dept.get("learning_policy", {})
+            parts.append(f"### {identity.get('name', dept_dir.name)} ({identity.get('id', '')})")
+            parts.append(f"Mission: {identity.get('mission', '')}")
+            parts.append(f"Personas: {', '.join(personas)}")
+            preferred = policy.get("preferred_change_types", [])
+            restricted = policy.get("restricted_change_types", [])
+            if preferred:
+                parts.append(f"Preferred changes: {', '.join(preferred)}")
+            if restricted:
+                parts.append(f"Restricted changes (need manual review): {', '.join(restricted)}")
+            parts.append("")
+        except Exception:
+            continue
+
+    return "\n".join(parts) if len(parts) > 2 else ""
+
+
 def build_analysis_prompt(
     metrics_summary: str,
     friction_details: list[str],
@@ -159,6 +203,11 @@ def build_analysis_prompt(
             "",
         ])
 
+    # Include department context so recommendations can be department-scoped
+    dept_context = _load_department_context()
+    if dept_context:
+        prompt_parts.extend([dept_context, ""])
+
     prompt_parts.append("## Friction Details")
 
     if friction_details:
@@ -180,12 +229,13 @@ def build_analysis_prompt(
             "For EACH recommendation, classify it with:",
             "- **target_system**: 'persona' (for Agent Persona Academy changes), 'claude_md' (for CLAUDE.md changes), or 'pipeline' (for process changes)",
             "- **target_persona**: If target_system is 'persona', which persona (e.g., 'christensen', 'sky-lynx'). Omit otherwise.",
+            "- **target_department**: If the recommendation applies to all personas in a department, specify the department ID (e.g., 'engineering', 'creative', 'business-strategy'). Omit for cross-department or non-persona recommendations.",
             "- **recommendation_type**: One of: voice_adjustment, framework_addition, framework_refinement, validation_marker_change, case_study_addition, constraint_addition, constraint_removal, claude_md_update, pipeline_change, other",
             "",
             "Format your response with clear sections for:",
             "- Executive Summary (2-3 sentences)",
             "- Friction Analysis",
-            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_persona, recommendation_type)",
+            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_persona, target_department, recommendation_type)",
             "- What's Working Well",
         ]
     )
@@ -309,6 +359,12 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                 match = re.search(r'\*\*[Tt]arget[_ ][Pp]ersona\*\*:\s*(.+)', line)
                 if match:
                     current_rec.target_persona = match.group(1).strip()
+
+            # Target department: - **Target Department**: engineering
+            elif "**target department**" in lower_line or "**target_department**" in lower_line:
+                match = re.search(r'\*\*[Tt]arget[_ ][Dd]epartment\*\*:\s*(.+)', line)
+                if match:
+                    current_rec.target_department = match.group(1).strip()
 
             # Recommendation type
             elif "**recommendation type**" in lower_line or "**recommendation_type**" in lower_line:
