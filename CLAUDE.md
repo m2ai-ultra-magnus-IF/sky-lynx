@@ -45,6 +45,10 @@ pr_drafter.py        # GitHub PR via gh CLI
 ## Data Sources
 
 - **Input**: `~/.claude/usage-data/facets/*.json`
+- **Outcome Records**: Snow-Town JSONL store (via `outcome_reader.py`)
+- **IdeaForge Market Signals**: `~/projects/ideaforge/data/ideaforge.db` (via `ideaforge_reader.py`, read-only)
+  - Signal type breakdown, idea classifications, score averages, top ideas
+  - Override DB path with `IDEAFORGE_DB_PATH` env var
 - **Output Report**: `~/documentation/improvements/YYYY-MM-DD-sky-lynx-report.md`
 - **Persona**: `~/projects/agent-persona-academy/personas/sky-lynx/persona.yaml`
 

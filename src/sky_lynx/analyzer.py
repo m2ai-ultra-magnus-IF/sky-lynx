@@ -20,6 +20,7 @@ from .insights_parser import (
     TrendAnalysis,
     load_weekly_analysis,
 )
+from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
 from .outcome_reader import build_outcome_digest, load_outcome_records
 from .pr_drafter import create_draft_pr
 from .report_writer import write_weekly_report
@@ -157,6 +158,18 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load outcome records: {e}")
 
+    # Load IdeaForge market signals
+    ideaforge_digest = None
+    try:
+        ideaforge_data = load_ideaforge_data()
+        if ideaforge_data:
+            ideaforge_digest = build_ideaforge_digest(ideaforge_data)
+            logger.info(f"Loaded IdeaForge data: {ideaforge_data.get('total_signals', 0)} signals, {ideaforge_data.get('total_ideas', 0)} ideas")
+        else:
+            logger.info("No IdeaForge data available")
+    except Exception as e:
+        logger.warning(f"Could not load IdeaForge data: {e}")
+
     # Run Claude analysis
     logger.info("Running Claude analysis..." if not dry_run else "Dry run - skipping API call")
     analysis_result = analyze_insights(
@@ -164,6 +177,7 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         friction_details=friction_details,
         dry_run=dry_run,
         outcome_digest=outcome_digest,
+        ideaforge_digest=ideaforge_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")
