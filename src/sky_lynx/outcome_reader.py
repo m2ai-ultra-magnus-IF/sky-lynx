@@ -10,8 +10,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Import snow-town contracts via path
-_snow_town_path = str(Path.home() / "projects" / "snow-town")
+# Import st-factory contracts via path
+_snow_town_path = str(Path.home() / "projects" / "st-factory")
 if _snow_town_path not in sys.path:
     sys.path.insert(0, _snow_town_path)
 

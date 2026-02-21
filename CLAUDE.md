@@ -45,11 +45,11 @@ pr_drafter.py        # GitHub PR via gh CLI
 ## Data Sources
 
 - **Input**: `~/.claude/usage-data/facets/*.json`
-- **Outcome Records**: Snow-Town JSONL store (via `outcome_reader.py`)
+- **Outcome Records**: ST Factory JSONL store (via `outcome_reader.py`)
 - **IdeaForge Market Signals**: `~/projects/ideaforge/data/ideaforge.db` (via `ideaforge_reader.py`, read-only)
   - Signal type breakdown, idea classifications, score averages, top ideas
   - Override DB path with `IDEAFORGE_DB_PATH` env var
-- **Research Signals**: Snow-Town `persona_metrics.db` (via `research_reader.py`, read-only)
+- **Research Signals**: ST Factory `persona_metrics.db` (via `research_reader.py`, read-only)
   - Papers, tools, domain trends from research-agents project
   - Signal counts by source/relevance, persona-tagged findings, recent high-relevance signals
   - Override DB path with `SNOW_TOWN_DB_PATH` env var

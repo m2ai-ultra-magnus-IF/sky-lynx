@@ -12,7 +12,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = Path.home() / "projects" / "snow-town" / "data" / "persona_metrics.db"
+DEFAULT_DB_PATH = Path.home() / "projects" / "st-factory" / "data" / "persona_metrics.db"
 
 
 def load_research_signals(db_path: Path | None = None) -> dict:
