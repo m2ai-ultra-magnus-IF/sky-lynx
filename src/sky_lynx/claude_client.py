@@ -178,6 +178,7 @@ def build_analysis_prompt(
     friction_details: list[str],
     outcome_digest: str | None = None,
     ideaforge_digest: str | None = None,
+    research_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -186,6 +187,7 @@ def build_analysis_prompt(
         friction_details: List of friction detail strings
         outcome_digest: Optional digest of idea pipeline outcomes
         ideaforge_digest: Optional digest of IdeaForge market signals
+        research_digest: Optional digest of research intelligence signals
 
     Returns:
         User prompt for Claude
@@ -209,6 +211,13 @@ def build_analysis_prompt(
         prompt_parts.extend([
             "## IdeaForge Market Signals",
             ideaforge_digest,
+            "",
+        ])
+
+    if research_digest:
+        prompt_parts.extend([
+            "## Research Intelligence",
+            research_digest,
             "",
         ])
 
@@ -395,6 +404,7 @@ def analyze_insights(
     api_key: str | None = None,
     outcome_digest: str | None = None,
     ideaforge_digest: str | None = None,
+    research_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -405,6 +415,7 @@ def analyze_insights(
         api_key: Optional API key override
         outcome_digest: Optional digest of idea pipeline outcomes
         ideaforge_digest: Optional digest of IdeaForge market signals
+        research_digest: Optional digest of research intelligence signals
 
     Returns:
         AnalysisResult with recommendations
@@ -437,7 +448,7 @@ def analyze_insights(
 
     client = Anthropic(api_key=key)
     system_prompt = load_persona_prompt()
-    user_prompt = build_analysis_prompt(metrics_summary, friction_details, outcome_digest, ideaforge_digest)
+    user_prompt = build_analysis_prompt(metrics_summary, friction_details, outcome_digest, ideaforge_digest, research_digest)
 
     response = client.messages.create(
         model=DEFAULT_MODEL,

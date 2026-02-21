@@ -49,6 +49,10 @@ pr_drafter.py        # GitHub PR via gh CLI
 - **IdeaForge Market Signals**: `~/projects/ideaforge/data/ideaforge.db` (via `ideaforge_reader.py`, read-only)
   - Signal type breakdown, idea classifications, score averages, top ideas
   - Override DB path with `IDEAFORGE_DB_PATH` env var
+- **Research Signals**: Snow-Town `persona_metrics.db` (via `research_reader.py`, read-only)
+  - Papers, tools, domain trends from research-agents project
+  - Signal counts by source/relevance, persona-tagged findings, recent high-relevance signals
+  - Override DB path with `SNOW_TOWN_DB_PATH` env var
 - **Output Report**: `~/documentation/improvements/YYYY-MM-DD-sky-lynx-report.md`
 - **Persona**: `~/projects/agent-persona-academy/personas/sky-lynx/persona.yaml`
 

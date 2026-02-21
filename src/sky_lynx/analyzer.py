@@ -22,6 +22,7 @@ from .insights_parser import (
 )
 from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
 from .outcome_reader import build_outcome_digest, load_outcome_records
+from .research_reader import build_research_digest, load_research_signals
 from .pr_drafter import create_draft_pr
 from .report_writer import write_weekly_report
 
@@ -170,6 +171,18 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load IdeaForge data: {e}")
 
+    # Load research signals from Snow-Town
+    research_digest = None
+    try:
+        research_data = load_research_signals()
+        if research_data and research_data.get("total_signals", 0) > 0:
+            research_digest = build_research_digest(research_data)
+            logger.info(f"Loaded research signals: {research_data.get('total_signals', 0)} total")
+        else:
+            logger.info("No research signals available yet")
+    except Exception as e:
+        logger.warning(f"Could not load research signals: {e}")
+
     # Run Claude analysis
     logger.info("Running Claude analysis..." if not dry_run else "Dry run - skipping API call")
     analysis_result = analyze_insights(
@@ -178,6 +191,7 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         dry_run=dry_run,
         outcome_digest=outcome_digest,
         ideaforge_digest=ideaforge_digest,
+        research_digest=research_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")
