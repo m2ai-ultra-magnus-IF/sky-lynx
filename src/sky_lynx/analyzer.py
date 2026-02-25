@@ -23,6 +23,7 @@ from .insights_parser import (
 from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
 from .outcome_reader import build_outcome_digest, load_outcome_records
 from .research_reader import build_research_digest, load_research_signals
+from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 from .pr_drafter import create_draft_pr
 from .report_writer import write_weekly_report
 
@@ -183,6 +184,18 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load research signals: {e}")
 
+    # Load Data (ClaudeClaw) telemetry
+    telemetry_digest = None
+    try:
+        telemetry_data = load_telemetry_data()
+        if telemetry_data:
+            telemetry_digest = build_telemetry_digest(telemetry_data)
+            logger.info(f"Loaded telemetry data: {telemetry_data.get('total_events', 0)} events")
+        else:
+            logger.info("No telemetry data available from Data")
+    except Exception as e:
+        logger.warning(f"Could not load telemetry data: {e}")
+
     # Run Claude analysis
     logger.info("Running Claude analysis..." if not dry_run else "Dry run - skipping API call")
     analysis_result = analyze_insights(
@@ -192,6 +205,7 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         outcome_digest=outcome_digest,
         ideaforge_digest=ideaforge_digest,
         research_digest=research_digest,
+        telemetry_digest=telemetry_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")

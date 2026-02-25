@@ -179,6 +179,7 @@ def build_analysis_prompt(
     outcome_digest: str | None = None,
     ideaforge_digest: str | None = None,
     research_digest: str | None = None,
+    telemetry_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -188,6 +189,7 @@ def build_analysis_prompt(
         outcome_digest: Optional digest of idea pipeline outcomes
         ideaforge_digest: Optional digest of IdeaForge market signals
         research_digest: Optional digest of research intelligence signals
+        telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
 
     Returns:
         User prompt for Claude
@@ -218,6 +220,14 @@ def build_analysis_prompt(
         prompt_parts.extend([
             "## Research Intelligence",
             research_digest,
+            "",
+        ])
+
+    if telemetry_digest:
+        prompt_parts.extend([
+            "## Data (ClaudeClaw) Telemetry",
+            "Usage telemetry from the Telegram bot interface showing backend routing, tool usage, latency, and error patterns.",
+            telemetry_digest,
             "",
         ])
 
@@ -405,6 +415,7 @@ def analyze_insights(
     outcome_digest: str | None = None,
     ideaforge_digest: str | None = None,
     research_digest: str | None = None,
+    telemetry_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -416,6 +427,7 @@ def analyze_insights(
         outcome_digest: Optional digest of idea pipeline outcomes
         ideaforge_digest: Optional digest of IdeaForge market signals
         research_digest: Optional digest of research intelligence signals
+        telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
 
     Returns:
         AnalysisResult with recommendations
@@ -448,7 +460,7 @@ def analyze_insights(
 
     client = Anthropic(api_key=key)
     system_prompt = load_persona_prompt()
-    user_prompt = build_analysis_prompt(metrics_summary, friction_details, outcome_digest, ideaforge_digest, research_digest)
+    user_prompt = build_analysis_prompt(metrics_summary, friction_details, outcome_digest, ideaforge_digest, research_digest, telemetry_digest)
 
     response = client.messages.create(
         model=DEFAULT_MODEL,
