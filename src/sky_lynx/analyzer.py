@@ -4,6 +4,8 @@ Entry point for weekly analysis of Claude Code usage insights.
 
 Usage:
     python -m sky_lynx.analyzer [--dry-run]
+    python -m sky_lynx.analyzer --auto-apply
+    python -m sky_lynx.analyzer --rollback latest
 """
 
 import argparse
@@ -15,17 +17,18 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from . import __version__
+from .auto_applicator import auto_apply_recommendations, rollback
 from .claude_client import AnalysisResult, analyze_insights
+from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
 from .insights_parser import (
     TrendAnalysis,
     load_weekly_analysis,
 )
-from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
 from .outcome_reader import build_outcome_digest, load_outcome_records
-from .research_reader import build_research_digest, load_research_signals
-from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 from .pr_drafter import create_draft_pr
 from .report_writer import write_weekly_report
+from .research_reader import build_research_digest, load_research_signals
+from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 
 # Load environment variables
 load_dotenv()
@@ -233,6 +236,19 @@ def main() -> int:
         help="Generate report but skip PR creation",
     )
     parser.add_argument(
+        "--auto-apply",
+        action="store_true",
+        help="Auto-apply eligible high-confidence rules directly to ~/CLAUDE.md",
+    )
+    parser.add_argument(
+        "--rollback",
+        nargs="?",
+        const="latest",
+        default=None,
+        metavar="BACKUP",
+        help="Rollback ~/CLAUDE.md to a backup (default: latest)",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"sky-lynx {__version__}",
@@ -245,18 +261,53 @@ def main() -> int:
     logger.info("=" * 60)
 
     try:
+        # Handle --rollback mode (standalone, no analysis needed)
+        if args.rollback is not None:
+            logger.info(f"Rolling back CLAUDE.md to: {args.rollback}")
+            success = rollback(args.rollback)
+            if success:
+                logger.info("Rollback successful")
+                return 0
+            else:
+                logger.error("Rollback failed")
+                return 1
+
         # Run analysis
         trend_analysis, analysis_result = run_analysis(dry_run=args.dry_run)
 
-        # Write report
+        # Auto-apply eligible recommendations (before report/PR so report can include results)
+        auto_apply_results = None
+        auto_applied_titles: set[str] = set()
+        if args.auto_apply:
+            session_id = f"sky-lynx-{datetime.now().strftime('%Y-%m-%d')}"
+            logger.info("Running auto-apply for eligible recommendations...")
+            auto_apply_results = auto_apply_recommendations(
+                analysis_result.recommendations,
+                session_id=session_id,
+                dry_run=args.dry_run,
+            )
+            auto_applied_titles = {
+                r.title for r in auto_apply_results if r.applied
+            }
+            if auto_applied_titles:
+                logger.info(f"Auto-applied {len(auto_applied_titles)} rules to ~/CLAUDE.md")
+
+        # Write report (pass auto-apply results for report section)
         logger.info("Writing weekly report...")
-        report_path = write_weekly_report(trend_analysis, analysis_result)
+        report_path = write_weekly_report(
+            trend_analysis,
+            analysis_result,
+            auto_apply_results=auto_apply_results,
+        )
         logger.info(f"Report saved to: {report_path}")
 
-        # Create PR (unless --no-pr or --dry-run)
+        # Create PR (unless --no-pr or --dry-run), excluding auto-applied recs
         if not args.no_pr and not args.dry_run:
             logger.info("Creating draft PR...")
-            pr_url = create_draft_pr(analysis_result)
+            pr_url = create_draft_pr(
+                analysis_result,
+                exclude_titles=auto_applied_titles,
+            )
             if pr_url:
                 logger.info(f"Draft PR created: {pr_url}")
             else:

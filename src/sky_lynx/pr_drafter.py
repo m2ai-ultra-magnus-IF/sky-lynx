@@ -58,11 +58,15 @@ def check_gh_available() -> bool:
         return False
 
 
-def generate_claude_md_changes(analysis: AnalysisResult) -> str | None:
+def generate_claude_md_changes(
+    analysis: AnalysisResult,
+    exclude_titles: set[str] | None = None,
+) -> str | None:
     """Generate proposed additions to CLAUDE.md based on recommendations.
 
     Args:
         analysis: AnalysisResult from Claude
+        exclude_titles: Titles to skip (already auto-applied)
 
     Returns:
         Proposed text to add, or None if no changes suggested
@@ -70,8 +74,13 @@ def generate_claude_md_changes(analysis: AnalysisResult) -> str | None:
     if not analysis.recommendations:
         return None
 
-    # Filter to high priority recommendations only
-    high_priority = [r for r in analysis.recommendations if r.priority == "high"]
+    exclude = exclude_titles or set()
+
+    # Filter to high priority recommendations only, excluding auto-applied
+    high_priority = [
+        r for r in analysis.recommendations
+        if r.priority == "high" and r.title not in exclude
+    ]
 
     if not high_priority:
         return None
@@ -101,18 +110,20 @@ def generate_claude_md_changes(analysis: AnalysisResult) -> str | None:
 def create_draft_pr(
     analysis: AnalysisResult,
     dry_run: bool = False,
+    exclude_titles: set[str] | None = None,
 ) -> str | None:
     """Create a draft PR with proposed CLAUDE.md changes.
 
     Args:
         analysis: AnalysisResult from Claude
         dry_run: If True, don't actually create PR
+        exclude_titles: Titles to skip (already auto-applied)
 
     Returns:
         PR URL if created, None otherwise
     """
     # Generate proposed changes
-    changes = generate_claude_md_changes(analysis)
+    changes = generate_claude_md_changes(analysis, exclude_titles=exclude_titles)
     if not changes:
         return None
 

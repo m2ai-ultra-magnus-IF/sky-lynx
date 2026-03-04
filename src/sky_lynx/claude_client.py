@@ -27,6 +27,7 @@ class Recommendation(BaseModel):
     target_persona: str | None = None
     target_department: str | None = None
     recommendation_type: str = "other"  # voice_adjustment | framework_addition | etc.
+    recommendation_id: str = ""  # set after auto-apply or PR creation for tracking
 
 
 class AnalysisResult(BaseModel):

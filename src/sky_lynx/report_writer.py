@@ -3,15 +3,21 @@
 Generates markdown reports from analysis results.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .claude_client import AnalysisResult, Recommendation
 from .insights_parser import TrendAnalysis
+
+if TYPE_CHECKING:
+    from .auto_applicator import AutoApplyResult
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,7 @@ def write_weekly_report(
     trend_analysis: TrendAnalysis,
     analysis_result: AnalysisResult,
     output_dir: Path | None = None,
+    auto_apply_results: list[AutoApplyResult] | None = None,
 ) -> Path:
     """Write the weekly report to markdown file.
 
@@ -64,6 +71,7 @@ def write_weekly_report(
         trend_analysis: TrendAnalysis from insights parser
         analysis_result: AnalysisResult from Claude
         output_dir: Optional override for output directory
+        auto_apply_results: Optional results from auto-apply step
 
     Returns:
         Path to the written report file
@@ -206,6 +214,30 @@ def write_weekly_report(
     else:
         lines.append("_No specific recommendations generated._")
         lines.append("")
+
+    # Auto-applied rules section
+    if auto_apply_results:
+        applied = [r for r in auto_apply_results if r.applied]
+        skipped = [r for r in auto_apply_results if not r.applied]
+        if applied or skipped:
+            lines.extend([
+                "---",
+                "",
+                "## Auto-Applied Rules",
+                "",
+            ])
+            if applied:
+                lines.append("### Applied")
+                lines.append("")
+                for r in applied:
+                    lines.append(f"- **{r.title}**: `{r.rule_text}`")
+                lines.append("")
+            if skipped:
+                lines.append("### Skipped")
+                lines.append("")
+                for r in skipped:
+                    lines.append(f"- **{r.title}**: {r.reason}")
+                lines.append("")
 
     lines.extend(
         [
