@@ -181,6 +181,9 @@ def build_analysis_prompt(
     ideaforge_digest: str | None = None,
     research_digest: str | None = None,
     telemetry_digest: str | None = None,
+    taste_digest: str | None = None,
+    effectiveness_digest: str | None = None,
+    pipeline_health_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -191,6 +194,8 @@ def build_analysis_prompt(
         ideaforge_digest: Optional digest of IdeaForge market signals
         research_digest: Optional digest of research intelligence signals
         telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
+        taste_digest: Optional digest of taste profile capture delta
+        effectiveness_digest: Optional digest of past recommendation effectiveness
 
     Returns:
         User prompt for Claude
@@ -229,6 +234,34 @@ def build_analysis_prompt(
             "## Data (ClaudeClaw) Telemetry",
             "Usage telemetry from the Telegram bot interface showing backend routing, tool usage, latency, and error patterns.",
             telemetry_digest,
+            "",
+        ])
+
+    if taste_digest:
+        prompt_parts.extend([
+            "## Taste Profile Delta",
+            "Preference signal capture from conversation corrections, rejection patterns, and enforcement rules. "
+            "Use this to calibrate tone, style, and approach in recommendations.",
+            taste_digest,
+            "",
+        ])
+
+    if pipeline_health_digest:
+        prompt_parts.extend([
+            "## Metroplex Pipeline Health",
+            "Automated build pipeline metrics from Metroplex (L5 autonomy coordinator). "
+            "Use this data to recommend pipeline configuration changes (thresholds, caps, auto-approve settings).",
+            pipeline_health_digest,
+            "",
+        ])
+
+    if effectiveness_digest:
+        prompt_parts.extend([
+            effectiveness_digest,
+            "",
+            "**IMPORTANT**: Use the effectiveness data above to calibrate your recommendations. "
+            "Avoid patterns similar to past 'harmful' recommendations. "
+            "Favor patterns similar to past 'effective' recommendations.",
             "",
         ])
 
@@ -417,6 +450,9 @@ def analyze_insights(
     ideaforge_digest: str | None = None,
     research_digest: str | None = None,
     telemetry_digest: str | None = None,
+    taste_digest: str | None = None,
+    effectiveness_digest: str | None = None,
+    pipeline_health_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -429,6 +465,8 @@ def analyze_insights(
         ideaforge_digest: Optional digest of IdeaForge market signals
         research_digest: Optional digest of research intelligence signals
         telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
+        taste_digest: Optional digest of taste profile capture delta
+        effectiveness_digest: Optional digest of past recommendation effectiveness
 
     Returns:
         AnalysisResult with recommendations
@@ -461,7 +499,11 @@ def analyze_insights(
 
     client = Anthropic(api_key=key)
     system_prompt = load_persona_prompt()
-    user_prompt = build_analysis_prompt(metrics_summary, friction_details, outcome_digest, ideaforge_digest, research_digest, telemetry_digest)
+    user_prompt = build_analysis_prompt(
+        metrics_summary, friction_details, outcome_digest, ideaforge_digest,
+        research_digest, telemetry_digest, taste_digest, effectiveness_digest,
+        pipeline_health_digest,
+    )
 
     response = client.messages.create(
         model=DEFAULT_MODEL,

@@ -7,4 +7,7 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Run weekly on Sundays at 2 AM
-0 2 * * 0 apexaipc cd /home/apexaipc/projects/sky-lynx && /home/apexaipc/projects/sky-lynx/.venv/bin/python -m sky_lynx.analyzer >> /var/log/sky-lynx/analyzer.log 2>&1
+0 2 * * 0 apexaipc cd /home/apexaipc/projects/sky-lynx && /home/apexaipc/projects/sky-lynx/.venv/bin/python -m sky_lynx.analyzer analyze --auto-apply >> /var/log/sky-lynx/analyzer.log 2>&1
+
+# Check for unresolved pipeline proposals daily at 10 AM (squawk if overdue)
+0 10 * * * apexaipc cd /home/apexaipc/projects/sky-lynx && /home/apexaipc/projects/sky-lynx/.venv/bin/python -m sky_lynx.analyzer check-proposals >> /var/log/sky-lynx/proposals.log 2>&1

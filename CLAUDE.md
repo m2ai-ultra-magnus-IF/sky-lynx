@@ -7,9 +7,16 @@
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run manually
-python -m sky_lynx.analyzer --dry-run  # No API calls
-python -m sky_lynx.analyzer            # Full run
+# Run analysis
+python -m sky_lynx.analyzer analyze --dry-run  # No API calls
+python -m sky_lynx.analyzer analyze            # Full run
+python -m sky_lynx.analyzer analyze --auto-apply  # Auto-apply CLAUDE.md changes
+
+# Pipeline config proposals
+python -m sky_lynx.analyzer list-proposals        # View pending proposals
+python -m sky_lynx.analyzer apply-proposal 1      # Accept a proposal
+python -m sky_lynx.analyzer reject-proposal 1     # Reject a proposal
+python -m sky_lynx.analyzer check-proposals       # Squawk about overdue proposals
 
 # Tests
 pytest tests/
@@ -49,12 +56,17 @@ pr_drafter.py        # GitHub PR via gh CLI
 - **IdeaForge Market Signals**: `~/projects/ideaforge/data/ideaforge.db` (via `ideaforge_reader.py`, read-only)
   - Signal type breakdown, idea classifications, score averages, top ideas
   - Override DB path with `IDEAFORGE_DB_PATH` env var
+- **Metroplex Pipeline Health**: `~/projects/metroplex/data/metroplex.db` (via `metroplex_reader.py`, read-only)
+  - Build success/failure rates, triage decisions, queue throughput, gate health
+  - Override DB path with `METROPLEX_DB_PATH` env var
+  - Enables pipeline config recommendations (thresholds, caps)
 - **Research Signals**: ST Factory `persona_metrics.db` (via `research_reader.py`, read-only)
   - Papers, tools, domain trends from research-agents project
   - Signal counts by source/relevance, persona-tagged findings, recent high-relevance signals
   - Override DB path with `SNOW_TOWN_DB_PATH` env var
 - **Output Report**: `~/documentation/improvements/YYYY-MM-DD-sky-lynx-report.md`
 - **Persona**: `~/projects/agent-persona-academy/personas/sky-lynx/persona.yaml`
+- **Proposals**: `~/projects/sky-lynx/data/proposals.db` (pipeline config proposals with squawk pattern)
 
 ## Testing Strategy
 

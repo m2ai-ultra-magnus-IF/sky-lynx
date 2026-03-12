@@ -355,3 +355,24 @@ def load_weekly_analysis(facets_dir: Path | None = None) -> TrendAnalysis:
     )
 
     return analyze_trends(current_metrics, prev_metrics)
+
+
+def parse_facets_in_range(
+    start_date: datetime, end_date: datetime, facets_dir: Path | None = None
+) -> WeeklyMetrics | None:
+    """Load and aggregate usage metrics for an arbitrary date range.
+
+    Used by the effectiveness tracker to compare before/after metrics.
+
+    Args:
+        start_date: Start of range (inclusive)
+        end_date: End of range (inclusive)
+        facets_dir: Optional override for facets directory
+
+    Returns:
+        WeeklyMetrics for the range, or None if no data
+    """
+    sessions = load_sessions_for_period(start_date, end_date, facets_dir)
+    if not sessions:
+        return None
+    return aggregate_weekly_metrics(sessions, start_date, end_date)
