@@ -154,10 +154,10 @@ def _load_quality_correlation(conn: sqlite3.Connection, data: dict) -> None:
             b.review_status,
             b.quality_score,
             CASE
-                WHEN p.status = 'published' THEN 'published'
                 WHEN b.review_status = 'review_failed' THEN 'review_failed'
                 WHEN b.review_status = 'tyrest_rejected' THEN 'tyrest_rejected'
                 WHEN b.status = 'failed' THEN 'build_failed'
+                WHEN p.status = 'published' THEN 'published'
                 WHEN b.review_status = 'reviewed' THEN 'reviewed_unpublished'
                 ELSE 'other'
             END as terminal_state
