@@ -106,4 +106,17 @@ def build_outcome_digest(records: list[OutcomeRecord]) -> str:
         for bo, count in sorted(build_outcomes.items(), key=lambda x: -x[1]):
             lines.append(f"  - {bo}: {count}")
 
+    # Quality scores by outcome (Phase 14c)
+    # overall_score now contains quality_score for published builds
+    scored_by_outcome: dict[str, list[float]] = {}
+    for r in records:
+        if r.overall_score is not None:
+            scored_by_outcome.setdefault(r.outcome.value, []).append(r.overall_score)
+
+    if scored_by_outcome:
+        lines.append(f"\n**Quality Scores by Outcome**:")
+        for outcome, outcome_scores in sorted(scored_by_outcome.items()):
+            avg = sum(outcome_scores) / len(outcome_scores)
+            lines.append(f"  - {outcome}: avg={avg:.1f}, n={len(outcome_scores)}")
+
     return "\n".join(lines)

@@ -125,12 +125,90 @@ def load_metroplex_data() -> dict | None:
         ).fetchone()
         data["recent_cycles"] = row["cnt"]
 
+        # Quality score correlation (Phase 14c)
+        # Get quality scores grouped by terminal state
+        _load_quality_correlation(conn, data)
+
         conn.close()
         return data
 
     except Exception as e:
         logger.warning("Could not read Metroplex DB: %s", e)
         return None
+
+
+def _load_quality_correlation(conn: sqlite3.Connection, data: dict) -> None:
+    """Load quality score correlation data into the metrics dict.
+
+    Groups builds by terminal state (completed+published, completed+review_failed,
+    failed) and computes quality score stats for each group.
+    """
+    quality = {"scored_builds": 0, "groups": {}}
+
+    # All scored builds with their terminal state
+    rows = conn.execute("""
+        SELECT
+            b.queue_job_id,
+            b.title,
+            b.status,
+            b.review_status,
+            b.quality_score,
+            CASE
+                WHEN p.status = 'published' THEN 'published'
+                WHEN b.review_status = 'review_failed' THEN 'review_failed'
+                WHEN b.review_status = 'tyrest_rejected' THEN 'tyrest_rejected'
+                WHEN b.status = 'failed' THEN 'build_failed'
+                WHEN b.review_status = 'reviewed' THEN 'reviewed_unpublished'
+                ELSE 'other'
+            END as terminal_state
+        FROM build_jobs b
+        LEFT JOIN publish_jobs p ON p.build_job_id = b.queue_job_id AND p.status = 'published'
+        WHERE b.quality_score IS NOT NULL
+        AND b.id IN (SELECT MAX(id) FROM build_jobs GROUP BY queue_job_id)
+    """).fetchall()
+
+    if not rows:
+        data["quality"] = quality
+        return
+
+    quality["scored_builds"] = len(rows)
+
+    # Group by terminal state
+    groups: dict[str, list[float]] = {}
+    for r in rows:
+        state = r["terminal_state"]
+        score = r["quality_score"]
+        groups.setdefault(state, []).append(score)
+
+    for state, scores in groups.items():
+        quality["groups"][state] = {
+            "count": len(scores),
+            "avg": round(sum(scores) / len(scores), 1),
+            "min": round(min(scores), 1),
+            "max": round(max(scores), 1),
+        }
+
+    # Compute suggested threshold (midpoint between published avg and failed avg)
+    all_scores = [r["quality_score"] for r in rows]
+    quality["overall_avg"] = round(sum(all_scores) / len(all_scores), 1)
+
+    pub_scores = groups.get("published", [])
+    fail_scores = (
+        groups.get("build_failed", []) +
+        groups.get("review_failed", []) +
+        groups.get("tyrest_rejected", [])
+    )
+
+    if pub_scores and fail_scores:
+        pub_avg = sum(pub_scores) / len(pub_scores)
+        fail_avg = sum(fail_scores) / len(fail_scores)
+        quality["suggested_threshold"] = round((pub_avg + fail_avg) / 2, 1)
+        quality["threshold_rationale"] = (
+            f"Midpoint between published avg ({pub_avg:.1f}) "
+            f"and failed avg ({fail_avg:.1f})"
+        )
+
+    data["quality"] = quality
 
 
 def build_pipeline_health_digest(data: dict) -> str:
@@ -191,5 +269,23 @@ def build_pipeline_health_digest(data: dict) -> str:
     lines.append(f"- Cycles run: {data['recent_cycles']}")
     if data["recent_cycle_errors"]:
         lines.append(f"- Cycle errors: {data['recent_cycle_errors']}")
+
+    # Quality correlation (Phase 14c)
+    quality = data.get("quality", {})
+    if quality.get("scored_builds", 0) > 0:
+        lines.append("")
+        lines.append("### Build Quality Scores (0-100)")
+        lines.append(f"- Scored builds: {quality['scored_builds']}")
+        lines.append(f"- Overall average: {quality.get('overall_avg', 0)}")
+
+        for state, stats in quality.get("groups", {}).items():
+            label = state.replace("_", " ").title()
+            lines.append(f"- {label}: avg={stats['avg']}, "
+                         f"range={stats['min']}-{stats['max']}, "
+                         f"n={stats['count']}")
+
+        if "suggested_threshold" in quality:
+            lines.append(f"- **Suggested quality threshold**: {quality['suggested_threshold']}")
+            lines.append(f"  ({quality.get('threshold_rationale', '')})")
 
     return "\n".join(lines)
