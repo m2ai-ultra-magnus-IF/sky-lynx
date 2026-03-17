@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "name": "sky-lynx",
+  "display_name": "Sky-Lynx",
+  "status": "active",
+  "purpose": "Continuous improvement agent that analyzes Claude Code usage insights, IdeaForge signals, and Metroplex pipeline health semi-weekly, then recommends CLAUDE.md updates via draft PRs and Linear issues. The measurement and feedback brain of ST Metro.",
+  "owner": "matthew",
+  "repo": {
+    "org": "m2ai-portfolio",
+    "name": "sky-lynx",
+    "default_branch": "main",
+    "visibility": "private"
+  },
+  "local_path": "/home/apexaipc/projects/sky-lynx",
+  "tech_stack": {
+    "languages": [
+      "python"
+    ],
+    "frameworks": [
+      "anthropic-sdk",
+      "pydantic"
+    ],
+    "databases": [
+      "sqlite"
+    ],
+    "runtime": "python-3.11"
+  },
+  "dependencies": [
+    {
+      "project": "ideaforge",
+      "relationship": "consumes",
+      "description": "Reads market signals DB for correlation analysis."
+    },
+    {
+      "project": "metroplex",
+      "relationship": "monitors",
+      "description": "Reads pipeline health DB for config recommendations."
+    },
+    {
+      "project": "st-factory",
+      "relationship": "consumes",
+      "description": "Reads outcome records and persona metrics for effectiveness tracking."
+    }
+  ],
+  "health": {
+    "score": 92,
+    "factors": {
+      "recency": 100,
+      "build_pass": 90,
+      "test_coverage": 85,
+      "dependency_freshness": 80
+    },
+    "last_computed": "2026-03-17T04:52:10.318064+00:00"
+  },
+  "activity": {
+    "last_commit": "2026-03-12T16:57:28-05:00",
+    "last_build": {
+      "date": "2026-03-12T16:57:28-05:00",
+      "passed": true,
+      "test_count": 140,
+      "coverage_pct": 0
+    },
+    "commits_30d": 8,
+    "stale_threshold_days": 14
+  },
+  "nudge": {
+    "last_nudge": null,
+    "suppressed_until": null,
+    "history": []
+  },
+  "extensions": {
+    "analytics": {
+      "data_sources": [
+        "~/.claude/usage-data/facets/*.json",
+        "~/projects/ideaforge/data/ideaforge.db",
+        "~/projects/metroplex/data/metroplex.db",
+        "~/projects/st-factory/data/persona_metrics.db"
+      ],
+      "output_format": "markdown",
+      "schedule": "0 2 * * 0,3"
+    },
+    "cron": {
+      "schedule": "0 2 * * 0,3",
+      "last_run": null,
+      "next_run": null,
+      "last_run_success": true
+    }
+  }
+}

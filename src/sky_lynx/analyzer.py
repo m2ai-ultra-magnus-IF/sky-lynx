@@ -327,6 +327,10 @@ def main() -> int:
     analyze_parser.add_argument("--rollback", nargs="?", const="latest", default=None, metavar="BACKUP",
                                 help="Rollback ~/CLAUDE.md to a backup (default: latest)")
 
+    # Manifest refresh command
+    refresh_parser = subparsers.add_parser("refresh-manifests", help="Refresh project.json health scores (daily pulse)")
+    refresh_parser.add_argument("--dry-run", action="store_true", help="Show changes without writing files")
+
     # Proposal management commands
     subparsers.add_parser("check-proposals", help="Check for unresolved proposals and squawk if overdue")
     subparsers.add_parser("list-proposals", help="List pending pipeline config proposals")
@@ -345,6 +349,19 @@ def main() -> int:
     parser.add_argument("--version", action="version", version=f"sky-lynx {__version__}")
 
     args = parser.parse_args()
+
+    # Handle manifest refresh (no analysis needed)
+    if args.command == "refresh-manifests":
+        from .manifest_refresh import run_refresh
+        results = run_refresh(dry_run=args.dry_run)
+        logger.info(
+            "Manifest refresh: %d/%d updated, %d stale, %d errors",
+            results["updated"], results["total"],
+            len(results["stale"]), len(results["errors"]),
+        )
+        if results["stale"]:
+            logger.info("Stale projects: %s", ", ".join(results["stale"]))
+        return 0
 
     # Handle proposal subcommands (no analysis needed)
     if args.command == "check-proposals":
