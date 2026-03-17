@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 CLAUDE_MD_PATH = Path.home() / "CLAUDE.md"
 STATE_DIR = Path.home() / ".sky-lynx"
-MAX_AUTO_CHANGES_PER_WEEK = 3
+MAX_AUTO_CHANGES_PER_WEEK = 5
 APPEND_MARKER = "<!-- New rules will be appended below this line -->"
 
 ALLOWED_TYPES = {

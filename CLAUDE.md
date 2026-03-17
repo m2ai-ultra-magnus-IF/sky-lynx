@@ -44,7 +44,7 @@ pr_drafter.py        # GitHub PR via gh CLI
 
 ## Key Decisions
 
-- **Batch processing over real-time**: Weekly analysis is sufficient for improvement cadence
+- **Semi-weekly analysis**: Runs Wed + Sun at 2 AM for tighter feedback loops (L5 roadmap: event-driven triggers next)
 - **Draft PRs over direct commits**: Human review required before changes
 - **Persona-driven analysis**: Uses Agent Persona Academy for consistent voice
 - **Trend-aware**: Compares current week to previous for context
