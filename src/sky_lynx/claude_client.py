@@ -1,17 +1,17 @@
-"""Anthropic API client for Sky-Lynx analysis.
+"""DeepInfra API client for Sky-Lynx analysis.
 
-Wraps the Anthropic SDK with the Sky-Lynx persona system prompt.
+Wraps the OpenAI-compatible DeepInfra API with the Sky-Lynx persona system prompt.
 """
 
 import os
 from pathlib import Path
 
 import yaml
-from anthropic import Anthropic
+from openai import OpenAI
 from pydantic import BaseModel, Field
 
-# Default model for analysis
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+# Default model for analysis (DeepInfra's Claude Sonnet)
+DEFAULT_MODEL = "anthropic/claude-4-sonnet"
 
 
 class Recommendation(BaseModel):
@@ -23,7 +23,7 @@ class Recommendation(BaseModel):
     suggested_change: str
     impact: str
     reversibility: str  # high, medium, low
-    target_system: str = "claude_md"  # persona | claude_md | pipeline
+    target_system: str = "claude_md"  # persona | claude_md | pipeline | preference | routing | skill | schedule
     target_persona: str | None = None
     target_department: str | None = None
     recommendation_type: str = "other"  # voice_adjustment | framework_addition | etc.
@@ -184,6 +184,10 @@ def build_analysis_prompt(
     taste_digest: str | None = None,
     effectiveness_digest: str | None = None,
     pipeline_health_digest: str | None = None,
+    preference_digest: str | None = None,
+    mission_digest: str | None = None,
+    skill_digest: str | None = None,
+    cost_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -196,6 +200,10 @@ def build_analysis_prompt(
         telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
         taste_digest: Optional digest of taste profile capture delta
         effectiveness_digest: Optional digest of past recommendation effectiveness
+        preference_digest: Optional digest of ClaudeClaw preference profile state
+        mission_digest: Optional digest of ClaudeClaw mission performance
+        skill_digest: Optional digest of deployed skill inventory and usage
+        cost_digest: Optional digest of ClaudeClaw token costs
 
     Returns:
         User prompt for Claude
@@ -255,6 +263,42 @@ def build_analysis_prompt(
             "",
         ])
 
+    if preference_digest:
+        prompt_parts.extend([
+            "## ClaudeClaw Preference Profile",
+            "Current state of the live preference learning system. Assess whether preferences "
+            "are converging correctly, drifting inappropriately, or missing important dimensions.",
+            preference_digest,
+            "",
+        ])
+
+    if mission_digest:
+        prompt_parts.extend([
+            "## ClaudeClaw Mission Performance",
+            "Multi-agent orchestration metrics from Command Center. Identify unreliable agents, "
+            "common failure modes, and opportunities to improve routing or decomposition.",
+            mission_digest,
+            "",
+        ])
+
+    if skill_digest:
+        prompt_parts.extend([
+            "## Skill Inventory & Usage",
+            "Deployed Claude Code skills vs actual usage. Identify unused skills for improvement "
+            "or removal, and gaps where new skills are needed.",
+            skill_digest,
+            "",
+        ])
+
+    if cost_digest:
+        prompt_parts.extend([
+            "## ClaudeClaw Token Costs",
+            "Token consumption and cost patterns across agents and sessions. "
+            "Flag anomalous spending and recommend efficiency improvements.",
+            cost_digest,
+            "",
+        ])
+
     if effectiveness_digest:
         prompt_parts.extend([
             effectiveness_digest,
@@ -289,7 +333,7 @@ def build_analysis_prompt(
             "4. Note what's working well that should be reinforced",
             "",
             "For EACH recommendation, classify it with:",
-            "- **target_system**: 'persona' (for Agent Persona Academy changes), 'claude_md' (for CLAUDE.md changes), or 'pipeline' (for process changes)",
+            "- **target_system**: 'persona' (for Agent Persona Academy changes), 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), or 'schedule' (for scheduled task cadence changes)",
             "- **target_persona**: If target_system is 'persona', which persona (e.g., 'christensen', 'sky-lynx'). Omit otherwise.",
             "- **target_department**: If the recommendation applies to all personas in a department, specify the department ID (e.g., 'engineering', 'creative', 'business-strategy'). Omit for cross-department or non-persona recommendations.",
             "- **recommendation_type**: One of: voice_adjustment, framework_addition, framework_refinement, validation_marker_change, case_study_addition, constraint_addition, constraint_removal, claude_md_update, pipeline_change, other",
@@ -413,7 +457,7 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                 match = re.search(r'\*\*[Tt]arget[_ ][Ss]ystem\*\*:\s*(.+)', line)
                 if match:
                     val = match.group(1).strip().lower()
-                    if val in ("persona", "claude_md", "pipeline"):
+                    if val in ("persona", "claude_md", "pipeline", "preference", "routing", "skill", "schedule"):
                         current_rec.target_system = val
 
             # Target persona: - **Target Persona**: christensen
@@ -453,6 +497,10 @@ def analyze_insights(
     taste_digest: str | None = None,
     effectiveness_digest: str | None = None,
     pipeline_health_digest: str | None = None,
+    preference_digest: str | None = None,
+    mission_digest: str | None = None,
+    skill_digest: str | None = None,
+    cost_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -467,6 +515,10 @@ def analyze_insights(
         telemetry_digest: Optional digest of Data (ClaudeClaw) usage telemetry
         taste_digest: Optional digest of taste profile capture delta
         effectiveness_digest: Optional digest of past recommendation effectiveness
+        preference_digest: Optional digest of ClaudeClaw preference profile state
+        mission_digest: Optional digest of ClaudeClaw mission performance
+        skill_digest: Optional digest of deployed skill inventory and usage
+        cost_digest: Optional digest of ClaudeClaw token costs
 
     Returns:
         AnalysisResult with recommendations
@@ -490,31 +542,36 @@ def analyze_insights(
         )
 
     # Get API key
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    key = api_key or os.environ.get("DEEPINFRA_API_KEY")
     if not key:
         raise ValueError(
-            "ANTHROPIC_API_KEY not found in environment. "
+            "DEEPINFRA_API_KEY not found in environment. "
             "Set it in .env or ~/.env.shared"
         )
 
-    client = Anthropic(api_key=key)
+    client = OpenAI(
+        api_key=key,
+        base_url="https://api.deepinfra.com/v1/openai",
+    )
     system_prompt = load_persona_prompt()
     user_prompt = build_analysis_prompt(
         metrics_summary, friction_details, outcome_digest, ideaforge_digest,
         research_digest, telemetry_digest, taste_digest, effectiveness_digest,
-        pipeline_health_digest,
+        pipeline_health_digest, preference_digest, mission_digest,
+        skill_digest, cost_digest,
     )
 
-    response = client.messages.create(
+    response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
     )
 
     # Extract text from response
-    content_block = response.content[0]
-    raw_response = content_block.text if hasattr(content_block, "text") else str(content_block)
+    raw_response = response.choices[0].message.content or ""
 
     # Parse sections from response
     sections = _parse_response_sections(raw_response)

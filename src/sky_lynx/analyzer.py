@@ -37,6 +37,10 @@ from .pr_drafter import create_draft_pr
 from .report_writer import write_weekly_report
 from .research_reader import build_research_digest, load_research_signals
 from .taste_reader import build_taste_digest, load_taste_data
+from .cost_reader import build_cost_digest, load_cost_data
+from .mission_reader import build_mission_digest, load_mission_data
+from .preference_reader import build_preference_digest, load_preference_data
+from .skill_reader import build_skill_digest, load_skill_data
 from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 
 # Load environment variables
@@ -236,6 +240,54 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load Metroplex data: {e}")
 
+    # Load ClaudeClaw preference profile
+    preference_digest = None
+    try:
+        preference_data = load_preference_data()
+        if preference_data:
+            preference_digest = build_preference_digest(preference_data)
+            logger.info(f"Loaded preference data: {preference_data.get('total', 0)} preferences")
+        else:
+            logger.info("No preference data available")
+    except Exception as e:
+        logger.warning(f"Could not load preference data: {e}")
+
+    # Load ClaudeClaw mission performance
+    mission_digest = None
+    try:
+        mission_data = load_mission_data()
+        if mission_data:
+            mission_digest = build_mission_digest(mission_data)
+            logger.info(f"Loaded mission data: {mission_data.get('total_missions', 0)} missions")
+        else:
+            logger.info("No mission data available")
+    except Exception as e:
+        logger.warning(f"Could not load mission data: {e}")
+
+    # Load ClaudeClaw token costs
+    cost_digest = None
+    try:
+        cost_data = load_cost_data()
+        if cost_data:
+            cost_digest = build_cost_digest(cost_data)
+            logger.info(f"Loaded cost data: ${cost_data.get('total_cost', 0):.2f} this week")
+        else:
+            logger.info("No cost data available")
+    except Exception as e:
+        logger.warning(f"Could not load cost data: {e}")
+
+    # Load skill inventory and usage
+    skill_digest = None
+    try:
+        skill_data = load_skill_data()
+        if skill_data:
+            skill_digest = build_skill_digest(skill_data)
+            logger.info(f"Loaded skill data: {skill_data.get('total_deployed', 0)} skills deployed")
+        else:
+            logger.info("No skill data available")
+    except Exception as e:
+        logger.warning(f"Could not load skill data: {e}")
+
     # Evaluate effectiveness of past recommendations (before analysis, so results inform it)
     effectiveness_digest = None
     if not dry_run:
@@ -268,6 +320,10 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         taste_digest=taste_digest,
         effectiveness_digest=effectiveness_digest,
         pipeline_health_digest=pipeline_health_digest,
+        preference_digest=preference_digest,
+        mission_digest=mission_digest,
+        skill_digest=skill_digest,
+        cost_digest=cost_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")
@@ -497,6 +553,20 @@ def main() -> int:
                 )
         except Exception as e:
             logger.warning(f"Could not create Linear issues: {e}")
+
+        # Write ClaudeClaw-targeted recommendations as JSON files (10c)
+        try:
+            from .claudeclaw_writer import write_claudeclaw_recommendations
+
+            written_files = write_claudeclaw_recommendations(
+                analysis_result.recommendations
+            )
+            if written_files:
+                logger.info(
+                    f"Wrote {len(written_files)} ClaudeClaw recommendations"
+                )
+        except Exception as e:
+            logger.warning(f"Could not write ClaudeClaw recommendations: {e}")
 
         # Trigger persona upgrader for persona-targeted recs (10b)
         persona_recs = [
