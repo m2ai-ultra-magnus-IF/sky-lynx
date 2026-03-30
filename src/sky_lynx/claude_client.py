@@ -23,8 +23,9 @@ class Recommendation(BaseModel):
     suggested_change: str
     impact: str
     reversibility: str  # high, medium, low
-    target_system: str = "claude_md"  # persona | claude_md | pipeline | preference | routing | skill | schedule
+    target_system: str = "claude_md"  # persona | claude_md | pipeline | preference | routing | skill | schedule | agent
     target_persona: str | None = None
+    target_agent: str | None = None
     target_department: str | None = None
     recommendation_type: str = "other"  # voice_adjustment | framework_addition | etc.
     recommendation_id: str = ""  # set after auto-apply or PR creation for tracking
@@ -333,15 +334,16 @@ def build_analysis_prompt(
             "4. Note what's working well that should be reinforced",
             "",
             "For EACH recommendation, classify it with:",
-            "- **target_system**: 'persona' (for Agent Persona Academy changes), 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), or 'schedule' (for scheduled task cadence changes)",
+            "- **target_system**: 'persona' (for persona YAML changes), 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), 'schedule' (for scheduled task cadence changes), or 'agent' (for true agent config changes — Galvatron, Starscream, Ravage, Soundwave, Scourge)",
             "- **target_persona**: If target_system is 'persona', which persona (e.g., 'christensen', 'sky-lynx'). Omit otherwise.",
+            "- **target_agent**: If target_system is 'agent', which agent (e.g., 'galvatron', 'starscream'). Required for agent recommendations.",
             "- **target_department**: If the recommendation applies to all personas in a department, specify the department ID (e.g., 'engineering', 'creative', 'business-strategy'). Omit for cross-department or non-persona recommendations.",
             "- **recommendation_type**: One of: voice_adjustment, framework_addition, framework_refinement, validation_marker_change, case_study_addition, constraint_addition, constraint_removal, claude_md_update, pipeline_change, other",
             "",
             "Format your response with clear sections for:",
             "- Executive Summary (2-3 sentences)",
             "- Friction Analysis",
-            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_persona, target_department, recommendation_type)",
+            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_persona, target_agent, target_department, recommendation_type)",
             "- What's Working Well",
         ]
     )
@@ -457,7 +459,7 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                 match = re.search(r'\*\*[Tt]arget[_ ][Ss]ystem\*\*:\s*(.+)', line)
                 if match:
                     val = match.group(1).strip().lower()
-                    if val in ("persona", "claude_md", "pipeline", "preference", "routing", "skill", "schedule"):
+                    if val in ("persona", "claude_md", "pipeline", "preference", "routing", "skill", "schedule", "agent"):
                         current_rec.target_system = val
 
             # Target persona: - **Target Persona**: christensen
@@ -465,6 +467,12 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                 match = re.search(r'\*\*[Tt]arget[_ ][Pp]ersona\*\*:\s*(.+)', line)
                 if match:
                     current_rec.target_persona = match.group(1).strip()
+
+            # Target agent: - **Target Agent**: galvatron
+            elif "**target agent**" in lower_line or "**target_agent**" in lower_line:
+                match = re.search(r'\*\*[Tt]arget[_ ][Aa]gent\*\*:\s*(.+)', line)
+                if match:
+                    current_rec.target_agent = match.group(1).strip()
 
             # Target department: - **Target Department**: engineering
             elif "**target department**" in lower_line or "**target_department**" in lower_line:

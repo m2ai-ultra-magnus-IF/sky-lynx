@@ -364,6 +364,39 @@ def _run_persona_upgrader() -> None:
         logger.warning(f"Could not run persona upgrader: {e}")
 
 
+def _run_agent_upgrader() -> None:
+    """Trigger ST Records agent upgrader for pending agent recs.
+
+    Runs the upgrader as a subprocess to keep systems decoupled.
+    """
+    upgrader_path = (
+        Path.home() / "projects" / "st-records" / "scripts" / "agent_upgrader.py"
+    )
+    if not upgrader_path.exists():
+        logger.warning(f"Agent upgrader not found at {upgrader_path}")
+        return
+
+    logger.info("Triggering agent upgrader for agent-targeted recommendations...")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(upgrader_path)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            logger.info("Agent upgrader completed successfully")
+        else:
+            logger.warning(
+                f"Agent upgrader exited with code {result.returncode}: "
+                f"{result.stderr[:200]}"
+            )
+    except subprocess.TimeoutExpired:
+        logger.warning("Agent upgrader timed out after 120s")
+    except Exception as e:
+        logger.warning(f"Could not run agent upgrader: {e}")
+
+
 def main() -> int:
     """Main entry point.
 
@@ -575,6 +608,14 @@ def main() -> int:
         ]
         if persona_recs and not args.dry_run:
             _run_persona_upgrader()
+
+        # Trigger agent upgrader for agent-targeted recs (10d)
+        agent_recs = [
+            r for r in analysis_result.recommendations
+            if r.target_system == "agent"
+        ]
+        if agent_recs and not args.dry_run:
+            _run_agent_upgrader()
 
         logger.info("=" * 60)
         logger.info("Sky-Lynx analysis complete")
