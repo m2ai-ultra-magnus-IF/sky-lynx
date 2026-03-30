@@ -49,7 +49,7 @@ def load_persona_prompt() -> str:
     persona_path = (
         Path.home()
         / "projects"
-        / "agent-persona-academy"
+        / "st-agent-registry"
         / "personas"
         / "sky-lynx"
         / "persona.yaml"
@@ -140,7 +140,7 @@ def _load_department_context() -> str:
     departments_dir = (
         Path.home()
         / "projects"
-        / "agent-persona-academy"
+        / "st-agent-registry"
         / "departments"
     )
 

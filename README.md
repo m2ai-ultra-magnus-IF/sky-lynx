@@ -80,7 +80,7 @@ src/sky_lynx/
 
 Sky-Lynx uses the Kaizen-inspired analyst persona defined in:
 ```
-~/projects/agent-persona-academy/personas/sky-lynx/persona.yaml
+~/projects/st-agent-registry/personas/sky-lynx/persona.yaml
 ```
 
 ### Frameworks

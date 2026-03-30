@@ -46,13 +46,13 @@ pr_drafter.py        # GitHub PR via gh CLI
 
 - **Semi-weekly analysis**: Runs Wed + Sun at 2 AM for tighter feedback loops (L5 roadmap: event-driven triggers next)
 - **Draft PRs over direct commits**: Human review required before changes
-- **Persona-driven analysis**: Uses Agent Persona Academy for consistent voice
+- **Persona-driven analysis**: Uses ST Agent Registry for consistent voice
 - **Trend-aware**: Compares current week to previous for context
 
 ## Data Sources
 
 - **Input**: `~/.claude/usage-data/facets/*.json`
-- **Outcome Records**: ST Factory JSONL store (via `outcome_reader.py`)
+- **Outcome Records**: ST Records JSONL store (via `outcome_reader.py`)
 - **IdeaForge Market Signals**: `~/projects/ideaforge/data/ideaforge.db` (via `ideaforge_reader.py`, read-only)
   - Signal type breakdown, idea classifications, score averages, top ideas
   - Override DB path with `IDEAFORGE_DB_PATH` env var
@@ -60,12 +60,12 @@ pr_drafter.py        # GitHub PR via gh CLI
   - Build success/failure rates, triage decisions, queue throughput, gate health
   - Override DB path with `METROPLEX_DB_PATH` env var
   - Enables pipeline config recommendations (thresholds, caps)
-- **Research Signals**: ST Factory `persona_metrics.db` (via `research_reader.py`, read-only)
+- **Research Signals**: ST Records `persona_metrics.db` (via `research_reader.py`, read-only)
   - Papers, tools, domain trends from research-agents project
   - Signal counts by source/relevance, persona-tagged findings, recent high-relevance signals
-  - Override DB path with `SNOW_TOWN_DB_PATH` env var
+  - Override DB path with `ST_RECORDS_DB_PATH` env var
 - **Output Report**: `~/documentation/improvements/YYYY-MM-DD-sky-lynx-report.md`
-- **Persona**: `~/projects/agent-persona-academy/personas/sky-lynx/persona.yaml`
+- **Persona**: `~/projects/st-agent-registry/personas/sky-lynx/persona.yaml`
 - **Proposals**: `~/projects/sky-lynx/data/proposals.db` (pipeline config proposals with squawk pattern)
 
 ## Testing Strategy
