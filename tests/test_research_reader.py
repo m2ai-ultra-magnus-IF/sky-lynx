@@ -148,7 +148,7 @@ class TestLoadResearchSignals:
         assert data == {}
 
     def test_load_env_var_override(self, research_db: Path, monkeypatch):
-        monkeypatch.setenv("SNOW_TOWN_DB_PATH", str(research_db))
+        monkeypatch.setenv("ST_RECORDS_DB_PATH", str(research_db))
         data = load_research_signals()
         assert data["total_signals"] == 4
 

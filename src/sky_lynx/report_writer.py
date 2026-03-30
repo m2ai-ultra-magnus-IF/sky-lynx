@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Import st-factory contracts via path
-_snow_town_path = str(Path.home() / "projects" / "st-factory")
-if _snow_town_path not in sys.path:
-    sys.path.insert(0, _snow_town_path)
+# Import st-records contracts via path
+_st_records_path = str(Path.home() / "projects" / "st-records")
+if _st_records_path not in sys.path:
+    sys.path.insert(0, _st_records_path)
 
 from contracts.improvement_recommendation import (
     EvidenceBasis,
@@ -355,7 +355,7 @@ def write_recommendations_sidecar(
 ) -> Path | None:
     """Write a JSON sidecar file with structured recommendations.
 
-    Also appends each recommendation to snow-town's JSONL store.
+    Also appends each recommendation to st-records JSONL store.
 
     Args:
         recommendations: List of Recommendation objects
@@ -381,7 +381,7 @@ def write_recommendations_sidecar(
     sidecar_path.write_text(json.dumps(sidecar_data, indent=2))
     logger.info(f"Wrote {len(contract_recs)} recommendations to {sidecar_path}")
 
-    # Append to snow-town JSONL store (with session_id dedup)
+    # Append to st-records JSONL store (with session_id dedup)
     try:
         store = ContractStore()
         existing = store.query_recommendations(limit=10000)
@@ -393,9 +393,9 @@ def write_recommendations_sidecar(
         else:
             for rec in contract_recs:
                 store.write_recommendation(rec)
-            logger.info(f"Appended {len(contract_recs)} recommendations to snow-town store")
+            logger.info(f"Appended {len(contract_recs)} recommendations to st-records store")
         store.close()
     except Exception as e:
-        logger.warning(f"Failed to write to snow-town store: {e}")
+        logger.warning(f"Failed to write to st-records store: {e}")
 
     return sidecar_path

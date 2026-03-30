@@ -398,7 +398,7 @@ class TestEffectivenessResult:
 
 
 class TestStoreEffectivenessColumns:
-    """Test ST Factory store effectiveness columns (integration)."""
+    """Test ST Records store effectiveness columns (integration)."""
 
     def test_update_and_query_effectiveness(self, mock_store):
         """Test writing and reading effectiveness data."""

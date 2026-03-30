@@ -332,12 +332,12 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
 
 
 def _run_persona_upgrader() -> None:
-    """Trigger ST Factory persona upgrader for pending persona recs.
+    """Trigger ST Records persona upgrader for pending persona recs.
 
     Runs the upgrader as a subprocess to keep systems decoupled.
     """
     upgrader_path = (
-        Path.home() / "projects" / "st-factory" / "scripts" / "persona_upgrader.py"
+        Path.home() / "projects" / "st-records" / "scripts" / "persona_upgrader.py"
     )
     if not upgrader_path.exists():
         logger.warning(f"Persona upgrader not found at {upgrader_path}")

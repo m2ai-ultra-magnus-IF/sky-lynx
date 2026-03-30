@@ -10,17 +10,17 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Import st-factory contracts via path
-_snow_town_path = str(Path.home() / "projects" / "st-factory")
-if _snow_town_path not in sys.path:
-    sys.path.insert(0, _snow_town_path)
+# Import st-records contracts via path
+_st_records_path = str(Path.home() / "projects" / "st-records")
+if _st_records_path not in sys.path:
+    sys.path.insert(0, _st_records_path)
 
 from contracts.outcome_record import OutcomeRecord, TerminalOutcome
 from contracts.store import ContractStore
 
 
 def load_outcome_records(limit: int = 100) -> list[OutcomeRecord]:
-    """Load OutcomeRecords from snow-town's JSONL store.
+    """Load OutcomeRecords from st-records JSONL store.
 
     Args:
         limit: Maximum records to load

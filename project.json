@@ -37,7 +37,7 @@
       "description": "Reads pipeline health DB for config recommendations."
     },
     {
-      "project": "st-factory",
+      "project": "st-records",
       "relationship": "consumes",
       "description": "Reads outcome records and persona metrics for effectiveness tracking."
     }
@@ -74,7 +74,7 @@
         "~/.claude/usage-data/facets/*.json",
         "~/projects/ideaforge/data/ideaforge.db",
         "~/projects/metroplex/data/metroplex.db",
-        "~/projects/st-factory/data/persona_metrics.db"
+        "~/projects/st-records/data/persona_metrics.db"
       ],
       "output_format": "markdown",
       "schedule": "0 2 * * 0,3"

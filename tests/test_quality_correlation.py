@@ -218,7 +218,7 @@ class TestOutcomeDigestQuality:
         """Quality scores by outcome appear in digest."""
         import sys
         from pathlib import Path
-        _st = str(Path.home() / "projects" / "st-factory")
+        _st = str(Path.home() / "projects" / "st-records")
         if _st not in sys.path:
             sys.path.insert(0, _st)
         from contracts.outcome_record import OutcomeRecord, TerminalOutcome
@@ -247,7 +247,7 @@ class TestOutcomeDigestQuality:
         """No quality section when records have no overall_score."""
         import sys
         from pathlib import Path
-        _st = str(Path.home() / "projects" / "st-factory")
+        _st = str(Path.home() / "projects" / "st-records")
         if _st not in sys.path:
             sys.path.insert(0, _st)
         from contracts.outcome_record import OutcomeRecord, TerminalOutcome

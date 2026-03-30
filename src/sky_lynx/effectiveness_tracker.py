@@ -18,10 +18,10 @@ from .insights_parser import WeeklyMetrics, parse_facets_in_range
 
 logger = logging.getLogger(__name__)
 
-# Import st-factory contracts via path
-_snow_town_path = str(Path.home() / "projects" / "st-factory")
-if _snow_town_path not in sys.path:
-    sys.path.insert(0, _snow_town_path)
+# Import st-records contracts via path
+_st_records_path = str(Path.home() / "projects" / "st-records")
+if _st_records_path not in sys.path:
+    sys.path.insert(0, _st_records_path)
 
 from contracts.store import ContractStore  # noqa: E402, I001
 
@@ -247,7 +247,7 @@ def run_effectiveness_evaluation() -> list[EffectivenessResult]:
             if result is None:
                 continue
 
-            # Write back to ST Factory
+            # Write back to ST Records
             store.update_recommendation_effectiveness(
                 recommendation_id=result.recommendation_id,
                 effectiveness=result.effectiveness,

@@ -12,7 +12,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = Path.home() / "projects" / "st-factory" / "data" / "persona_metrics.db"
+DEFAULT_DB_PATH = Path.home() / "projects" / "st-records" / "data" / "persona_metrics.db"
 
 
 def load_research_signals(db_path: Path | None = None) -> dict:
@@ -22,18 +22,18 @@ def load_research_signals(db_path: Path | None = None) -> dict:
     a summary of research signals by source, relevance, and domain.
 
     Args:
-        db_path: Path to persona_metrics.db. Defaults to Snow-Town data dir
-                 or SNOW_TOWN_DB_PATH env var.
+        db_path: Path to persona_metrics.db. Defaults to ST Records data dir
+                 or ST_RECORDS_DB_PATH env var.
 
     Returns:
         Dict with signal counts, relevance distribution, recent high signals.
         Empty dict if DB is missing or table doesn't exist.
     """
     if db_path is None:
-        db_path = Path(os.environ.get("SNOW_TOWN_DB_PATH", str(DEFAULT_DB_PATH)))
+        db_path = Path(os.environ.get("ST_RECORDS_DB_PATH", str(DEFAULT_DB_PATH)))
 
     if not db_path.exists():
-        logger.warning(f"Snow-Town DB not found at {db_path}")
+        logger.warning(f"ST Records DB not found at {db_path}")
         return {}
 
     try:
