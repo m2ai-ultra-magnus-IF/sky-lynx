@@ -189,6 +189,8 @@ def build_analysis_prompt(
     mission_digest: str | None = None,
     skill_digest: str | None = None,
     cost_digest: str | None = None,
+    agent_context_digest: str | None = None,
+    agent_effectiveness_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -205,6 +207,8 @@ def build_analysis_prompt(
         mission_digest: Optional digest of ClaudeClaw mission performance
         skill_digest: Optional digest of deployed skill inventory and usage
         cost_digest: Optional digest of ClaudeClaw token costs
+        agent_context_digest: Optional digest of agent registry metadata
+        agent_effectiveness_digest: Optional digest of agent patch effectiveness
 
     Returns:
         User prompt for Claude
@@ -297,6 +301,24 @@ def build_analysis_prompt(
             "Token consumption and cost patterns across agents and sessions. "
             "Flag anomalous spending and recommend efficiency improvements.",
             cost_digest,
+            "",
+        ])
+
+    if agent_context_digest:
+        prompt_parts.extend([
+            agent_context_digest,
+            "Use this to understand which agents exist and their current learning state. "
+            "When recommending agent improvements, target specific agents by ID.",
+            "",
+        ])
+
+    if agent_effectiveness_digest:
+        prompt_parts.extend([
+            agent_effectiveness_digest,
+            "",
+            "**IMPORTANT**: Use agent patch effectiveness data to calibrate agent recommendations. "
+            "Avoid patterns similar to past 'harmful' agent patches. "
+            "Favor patterns similar to past 'effective' agent patches.",
             "",
         ])
 
@@ -509,6 +531,8 @@ def analyze_insights(
     mission_digest: str | None = None,
     skill_digest: str | None = None,
     cost_digest: str | None = None,
+    agent_context_digest: str | None = None,
+    agent_effectiveness_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -527,6 +551,8 @@ def analyze_insights(
         mission_digest: Optional digest of ClaudeClaw mission performance
         skill_digest: Optional digest of deployed skill inventory and usage
         cost_digest: Optional digest of ClaudeClaw token costs
+        agent_context_digest: Optional digest of agent registry metadata
+        agent_effectiveness_digest: Optional digest of agent patch effectiveness
 
     Returns:
         AnalysisResult with recommendations
@@ -566,7 +592,8 @@ def analyze_insights(
         metrics_summary, friction_details, outcome_digest, ideaforge_digest,
         research_digest, telemetry_digest, taste_digest, effectiveness_digest,
         pipeline_health_digest, preference_digest, mission_digest,
-        skill_digest, cost_digest,
+        skill_digest, cost_digest, agent_context_digest,
+        agent_effectiveness_digest,
     )
 
     response = client.chat.completions.create(

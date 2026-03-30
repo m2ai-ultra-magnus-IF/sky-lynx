@@ -15,32 +15,37 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 
 from . import __version__
+from .agent_effectiveness_tracker import (
+    build_agent_effectiveness_digest,
+    run_agent_effectiveness_evaluation,
+)
 from .auto_applicator import auto_apply_recommendations, rollback
 from .claude_client import AnalysisResult, analyze_insights
+from .cost_reader import build_cost_digest, load_cost_data
 from .effectiveness_tracker import (
     build_effectiveness_digest,
     run_effectiveness_evaluation,
 )
 from .ideaforge_reader import build_ideaforge_digest, load_ideaforge_data
-from .metroplex_reader import build_pipeline_health_digest, load_metroplex_data
-from .proposal_tracker import ProposalTracker
 from .insights_parser import (
     TrendAnalysis,
     load_weekly_analysis,
 )
 from .linear_writer import create_linear_issues
+from .metroplex_reader import build_pipeline_health_digest, load_metroplex_data
+from .mission_reader import build_mission_digest, load_mission_data
 from .outcome_reader import build_outcome_digest, load_outcome_records
 from .pr_drafter import create_draft_pr
+from .preference_reader import build_preference_digest, load_preference_data
+from .proposal_tracker import ProposalTracker
 from .report_writer import write_weekly_report
 from .research_reader import build_research_digest, load_research_signals
-from .taste_reader import build_taste_digest, load_taste_data
-from .cost_reader import build_cost_digest, load_cost_data
-from .mission_reader import build_mission_digest, load_mission_data
-from .preference_reader import build_preference_digest, load_preference_data
 from .skill_reader import build_skill_digest, load_skill_data
+from .taste_reader import build_taste_digest, load_taste_data
 from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 
 # Load environment variables
@@ -139,6 +144,47 @@ def format_metrics_summary(analysis: TrendAnalysis) -> str:
             lines.append(f"  - {success}: {count}")
 
     return "\n".join(lines)
+
+
+def _load_agent_context() -> str | None:
+    """Load agent registry context: registry.yaml metadata for all agents.
+
+    Returns formatted digest string, or None if not available.
+    """
+    agents_dir = Path.home() / "projects" / "st-agent-registry" / "agents"
+    if not agents_dir.exists():
+        return None
+
+    parts = []
+    for agent_dir in sorted(agents_dir.iterdir()):
+        registry_file = agent_dir / "registry.yaml"
+        if not registry_file.exists():
+            continue
+        try:
+            with open(registry_file) as f:
+                reg = yaml.safe_load(f)
+            agent_id = reg.get("agent_id", agent_dir.name)
+            agent_type = reg.get("type", "unknown")
+            learning = reg.get("learning", {})
+            patches_applied = learning.get("total_patches_applied", 0)
+            patches_proposed = learning.get("total_patches_proposed", 0)
+            eff_score = learning.get("effectiveness_score")
+            last_patch = learning.get("last_patch_at")
+
+            line = f"  - **{agent_id}** (type: {agent_type})"
+            line += f" — patches: {patches_applied} applied / {patches_proposed} proposed"
+            if eff_score is not None:
+                line += f", effectiveness: {eff_score:.3f}"
+            if last_patch:
+                line += f", last patch: {last_patch}"
+            parts.append(line)
+        except Exception:
+            continue
+
+    if not parts:
+        return None
+
+    return "## Agent Registry Context\n\n" + "\n".join(parts)
 
 
 def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
@@ -288,6 +334,17 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load skill data: {e}")
 
+    # Load agent registry context (registry.yaml for all agents)
+    agent_context_digest = None
+    try:
+        agent_context_digest = _load_agent_context()
+        if agent_context_digest:
+            logger.info("Loaded agent registry context for analysis")
+        else:
+            logger.info("No agent registry context available")
+    except Exception as e:
+        logger.warning(f"Could not load agent registry context: {e}")
+
     # Evaluate effectiveness of past recommendations (before analysis, so results inform it)
     effectiveness_digest = None
     if not dry_run:
@@ -307,6 +364,25 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not build effectiveness digest: {e}")
 
+    # Evaluate effectiveness of past agent patches
+    agent_effectiveness_digest = None
+    if not dry_run:
+        try:
+            agent_eval_results = run_agent_effectiveness_evaluation()
+            if agent_eval_results:
+                logger.info(f"Evaluated {len(agent_eval_results)} past agent patches")
+        except Exception as e:
+            logger.warning(f"Could not run agent effectiveness evaluation: {e}")
+
+    try:
+        agent_effectiveness_digest = build_agent_effectiveness_digest()
+        if agent_effectiveness_digest:
+            logger.info("Loaded agent effectiveness digest for analysis context")
+        else:
+            logger.info("No agent effectiveness data available yet")
+    except Exception as e:
+        logger.warning(f"Could not build agent effectiveness digest: {e}")
+
     # Run Claude analysis
     logger.info("Running Claude analysis..." if not dry_run else "Dry run - skipping API call")
     analysis_result = analyze_insights(
@@ -324,6 +400,8 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         mission_digest=mission_digest,
         skill_digest=skill_digest,
         cost_digest=cost_digest,
+        agent_context_digest=agent_context_digest,
+        agent_effectiveness_digest=agent_effectiveness_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")
