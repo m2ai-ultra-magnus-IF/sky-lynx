@@ -615,16 +615,32 @@ def main() -> int:
         ]
         if pipeline_recs and not args.dry_run:
             tracker = ProposalTracker()
+            auto_accepted = 0
             for rec in pipeline_recs:
-                # Extract parameter and values from the recommendation
-                tracker.propose(
+                proposal_id = tracker.propose(
                     parameter=rec.title,
                     current_value="(current)",
                     proposed_value=rec.suggested_change,
                     rationale=rec.evidence,
                 )
+                # Auto-accept high-confidence pipeline proposals
+                if (
+                    rec.priority == "high"
+                    and rec.reversibility == "high"
+                    and rec.evidence
+                    and len(rec.evidence) >= 40
+                ):
+                    tracker.accept(proposal_id)
+                    auto_accepted += 1
+                    logger.info(
+                        "Auto-accepted pipeline proposal #%d: %s",
+                        proposal_id, rec.title,
+                    )
             tracker.close()
-            logger.info("Created %d pipeline config proposals", len(pipeline_recs))
+            logger.info(
+                "Created %d pipeline proposals (%d auto-accepted)",
+                len(pipeline_recs), auto_accepted,
+            )
 
         # Write report (pass auto-apply results for report section)
         logger.info("Writing weekly report...")
