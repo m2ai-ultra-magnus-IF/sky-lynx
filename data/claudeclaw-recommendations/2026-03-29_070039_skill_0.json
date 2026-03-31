@@ -1,0 +1,12 @@
+{
+  "source": "sky-lynx",
+  "created_at": "2026-03-29T07:00:39.577672+00:00",
+  "target_system": "skill",
+  "title": "5. Skill Deprecation and Consolidation",
+  "priority": "medium",
+  "evidence": "0% utilization across 28 skills",
+  "suggested_change": "Archive 20+ unused skills, consolidate to 5-8 core workflows",
+  "impact": "Reduces cognitive overhead, improves discoverability",
+  "reversibility": "high",
+  "recommendation_type": "other"
+}
