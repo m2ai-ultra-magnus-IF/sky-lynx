@@ -1,12 +1,10 @@
 """DeepInfra API client for Sky-Lynx analysis.
 
-Wraps the OpenAI-compatible DeepInfra API with the Sky-Lynx persona system prompt.
+Wraps the OpenAI-compatible DeepInfra API with the Sky-Lynx system prompt.
 """
 
 import os
-from pathlib import Path
 
-import yaml
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
@@ -41,138 +39,50 @@ class AnalysisResult(BaseModel):
     raw_response: str = ""
 
 
-def load_persona_prompt() -> str:
-    """Load the Sky-Lynx persona and convert to system prompt.
+def _get_system_prompt() -> str:
+    """Sky-Lynx system prompt — self-contained, no external dependencies."""
+    return """You are Sky-Lynx, a continuous improvement analyst for the ST Metro ecosystem.
 
-    Returns:
-        System prompt string for Claude API
-    """
-    persona_path = (
-        Path.home()
-        / "projects"
-        / "st-agent-registry"
-        / "personas"
-        / "sky-lynx"
-        / "persona.yaml"
-    )
+You analyze Claude Code usage insights, pipeline metrics, and agent telemetry to recommend
+improvements across CLAUDE.md files, pipeline configuration, agent behavior, and workflow automation.
 
-    if not persona_path.exists():
-        # Fallback to embedded prompt if persona file not found
-        return _get_fallback_prompt()
+## Voice and Style
 
-    with open(persona_path) as f:
-        persona = yaml.safe_load(f)
+- Data-driven and evidence-based — every recommendation cites specific metrics
+- Hedged language ("consider", "might benefit from", "suggest exploring") — never prescriptive
+- Concise and actionable — recommendations should be implementable in one session
+- Calibrated confidence — distinguish high-confidence (strong data) from exploratory (weak signal)
 
-    # Build system prompt from persona
-    identity = persona.get("identity", {})
-    voice = persona.get("voice", {})
-    frameworks = persona.get("frameworks", {})
-    analysis = persona.get("analysis_patterns", {})
+## Constraints
 
-    prompt_parts = [
-        f"You are {identity.get('name', 'Sky-Lynx')}, {identity.get('role', 'a continuous improvement analyst')}.",
-        "",
-        identity.get("background", ""),
-        "",
-        "## Voice and Style",
-        "",
-    ]
+- Never recommend changes without supporting evidence from the data provided
+- Never propose irreversible changes without flagging them as such
+- Never recommend more than 8 changes per analysis — focus beats volume
+- Always include reversibility assessment for each recommendation
 
-    # Add tone
-    for tone in voice.get("tone", []):
-        prompt_parts.append(f"- {tone}")
+## Analytical Frameworks
 
-    prompt_parts.extend(["", "## Characteristic Phrases", ""])
-    for phrase in voice.get("phrases", []):
-        prompt_parts.append(f'- "{phrase}"')
+### Effectiveness Measurement
+Track recommendation outcomes over time. Weight future recommendations toward patterns
+that produced measurable improvement. Deprioritize patterns similar to past harmful changes.
 
-    prompt_parts.extend(["", "## Communication Style", ""])
-    for style in voice.get("style", []):
-        prompt_parts.append(f"- {style}")
+### Friction Analysis
+Identify recurring pain points by frequency and severity. Distinguish one-time anomalies
+from systemic patterns. Root-cause friction to specific files, workflows, or configurations.
 
-    prompt_parts.extend(["", "## Constraints (What you must NOT do)", ""])
-    for constraint in voice.get("constraints", []):
-        prompt_parts.append(f"- {constraint}")
+### Recommendation Prioritization
+Score by: impact (how much improvement), effort (how hard to implement), reversibility
+(how easy to undo), and evidence strength (how confident in the data).
 
-    # Add frameworks
-    prompt_parts.extend(["", "## Analytical Frameworks", ""])
-    for name, framework in frameworks.items():
-        prompt_parts.append(f"### {name.replace('_', ' ').title()}")
-        prompt_parts.append(framework.get("description", ""))
-        prompt_parts.append("")
+## Output Structure
 
-    # Add output structure
-    prompt_parts.extend(["", "## Output Structure", ""])
-    for section in analysis.get("output_structure", []):
-        prompt_parts.append(f"- **{section.get('section')}**: {section.get('purpose', '')}")
+- **Executive Summary**: 2-3 sentence high-level assessment
+- **Friction Analysis**: Breakdown of identified issues with evidence
+- **Recommendations**: Prioritized list with evidence, suggested change, impact, reversibility
+- **What's Working Well**: Positive patterns to reinforce
 
-    prompt_parts.extend(["", analysis.get("synthesis_guidance", "")])
-
-    return "\n".join(prompt_parts)
-
-
-def _get_fallback_prompt() -> str:
-    """Fallback system prompt if persona file not found."""
-    return """You are Sky-Lynx, a continuous improvement analyst.
-
-You analyze Claude Code usage insights and recommend CLAUDE.md improvements.
-
-Key principles:
-- Use data and evidence to support recommendations
-- Propose small, incremental, reversible changes
-- Use hedged language ("consider", "might", "suggest")
-- Prioritize by impact, effort, and reversibility
-- Focus on eliminating friction and waste
-
-Output structure:
-1. Executive Summary - High-level assessment
-2. Friction Analysis - Breakdown of issues
-3. Recommendations - Prioritized list with evidence
-4. What's Working Well - Positive patterns to reinforce
-"""
-
-
-def _load_department_context() -> str:
-    """Load department definitions from Academy for context in analysis.
-
-    Returns:
-        Formatted department context string, or empty string if not available.
-    """
-    departments_dir = (
-        Path.home()
-        / "projects"
-        / "st-agent-registry"
-        / "departments"
-    )
-
-    if not departments_dir.exists():
-        return ""
-
-    parts = ["## Academy Departments", ""]
-    for dept_dir in sorted(departments_dir.iterdir()):
-        dept_file = dept_dir / "department.yaml"
-        if not dept_file.exists():
-            continue
-        try:
-            with open(dept_file) as f:
-                dept = yaml.safe_load(f)
-            identity = dept.get("identity", {})
-            personas = dept.get("personas", [])
-            policy = dept.get("learning_policy", {})
-            parts.append(f"### {identity.get('name', dept_dir.name)} ({identity.get('id', '')})")
-            parts.append(f"Mission: {identity.get('mission', '')}")
-            parts.append(f"Personas: {', '.join(personas)}")
-            preferred = policy.get("preferred_change_types", [])
-            restricted = policy.get("restricted_change_types", [])
-            if preferred:
-                parts.append(f"Preferred changes: {', '.join(preferred)}")
-            if restricted:
-                parts.append(f"Restricted changes (need manual review): {', '.join(restricted)}")
-            parts.append("")
-        except Exception:
-            continue
-
-    return "\n".join(parts) if len(parts) > 2 else ""
+Synthesize across all data sources. Cross-reference pipeline health with usage patterns.
+Identify causal relationships, not just correlations."""
 
 
 def build_analysis_prompt(
@@ -332,11 +242,6 @@ def build_analysis_prompt(
             "",
         ])
 
-    # Include department context so recommendations can be department-scoped
-    dept_context = _load_department_context()
-    if dept_context:
-        prompt_parts.extend([dept_context, ""])
-
     prompt_parts.append("## Friction Details")
 
     if friction_details:
@@ -356,16 +261,14 @@ def build_analysis_prompt(
             "4. Note what's working well that should be reinforced",
             "",
             "For EACH recommendation, classify it with:",
-            "- **target_system**: 'persona' (for persona YAML changes), 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), 'schedule' (for scheduled task cadence changes), or 'agent' (for true agent config changes — Galvatron, Starscream, Ravage, Soundwave, Scourge)",
-            "- **target_persona**: If target_system is 'persona', which persona (e.g., 'christensen', 'sky-lynx'). Omit otherwise.",
+            "- **target_system**: 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), 'schedule' (for scheduled task cadence changes), or 'agent' (for agent config changes — Galvatron, Starscream, Ravage, Soundwave, Scourge)",
             "- **target_agent**: If target_system is 'agent', which agent (e.g., 'galvatron', 'starscream'). Required for agent recommendations.",
-            "- **target_department**: If the recommendation applies to all personas in a department, specify the department ID (e.g., 'engineering', 'creative', 'business-strategy'). Omit for cross-department or non-persona recommendations.",
-            "- **recommendation_type**: One of: voice_adjustment, framework_addition, framework_refinement, validation_marker_change, case_study_addition, constraint_addition, constraint_removal, claude_md_update, pipeline_change, other",
+            "- **recommendation_type**: One of: claude_md_update, pipeline_change, constraint_addition, constraint_removal, other",
             "",
             "Format your response with clear sections for:",
             "- Executive Summary (2-3 sentences)",
             "- Friction Analysis",
-            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_persona, target_agent, target_department, recommendation_type)",
+            "- Recommendations (with priority, evidence, suggested change, reversibility, target_system, target_agent, recommendation_type)",
             "- What's Working Well",
         ]
     )
@@ -587,7 +490,7 @@ def analyze_insights(
         api_key=key,
         base_url="https://api.deepinfra.com/v1/openai",
     )
-    system_prompt = load_persona_prompt()
+    system_prompt = _get_system_prompt()
     user_prompt = build_analysis_prompt(
         metrics_summary, friction_details, outcome_digest, ideaforge_digest,
         research_digest, telemetry_digest, taste_digest, effectiveness_digest,

@@ -409,38 +409,6 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     return trend_analysis, analysis_result
 
 
-def _run_persona_upgrader() -> None:
-    """Trigger ST Records persona upgrader for pending persona recs.
-
-    Runs the upgrader as a subprocess to keep systems decoupled.
-    """
-    upgrader_path = (
-        Path.home() / "projects" / "st-records" / "scripts" / "persona_upgrader.py"
-    )
-    if not upgrader_path.exists():
-        logger.warning(f"Persona upgrader not found at {upgrader_path}")
-        return
-
-    logger.info("Triggering persona upgrader for persona-targeted recommendations...")
-    try:
-        result = subprocess.run(
-            [sys.executable, str(upgrader_path)],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if result.returncode == 0:
-            logger.info("Persona upgrader completed successfully")
-        else:
-            logger.warning(
-                f"Persona upgrader exited with code {result.returncode}: "
-                f"{result.stderr[:200]}"
-            )
-    except subprocess.TimeoutExpired:
-        logger.warning("Persona upgrader timed out after 120s")
-    except Exception as e:
-        logger.warning(f"Could not run persona upgrader: {e}")
-
 
 def _run_agent_upgrader() -> None:
     """Trigger ST Records agent upgrader for pending agent recs.
@@ -699,14 +667,6 @@ def main() -> int:
                 )
         except Exception as e:
             logger.warning(f"Could not write ClaudeClaw recommendations: {e}")
-
-        # Trigger persona upgrader for persona-targeted recs (10b)
-        persona_recs = [
-            r for r in analysis_result.recommendations
-            if r.target_system == "persona"
-        ]
-        if persona_recs and not args.dry_run:
-            _run_persona_upgrader()
 
         # Trigger agent upgrader for agent-targeted recs (10d)
         agent_recs = [
