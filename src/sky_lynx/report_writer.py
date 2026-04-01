@@ -323,9 +323,6 @@ def _to_contract_recommendation(
 
     scope = TargetScope.ALL_PERSONAS
     target_ids: list[str] = []
-    if rec.target_persona:
-        scope = TargetScope.SPECIFIC_PERSONA
-        target_ids = [rec.target_persona]
 
     return ImprovementRecommendation(
         recommendation_id=f"sl-{uuid.uuid4().hex[:8]}",

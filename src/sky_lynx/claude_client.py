@@ -21,10 +21,8 @@ class Recommendation(BaseModel):
     suggested_change: str
     impact: str
     reversibility: str  # high, medium, low
-    target_system: str = "claude_md"  # persona | claude_md | pipeline | preference | routing | skill | schedule | agent
-    target_persona: str | None = None
+    target_system: str = "claude_md"  # claude_md | pipeline | preference | routing | skill | schedule | agent
     target_agent: str | None = None
-    target_department: str | None = None
     recommendation_type: str = "other"  # voice_adjustment | framework_addition | etc.
     recommendation_id: str = ""  # set after auto-apply or PR creation for tracking
 
@@ -384,26 +382,14 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                 match = re.search(r'\*\*[Tt]arget[_ ][Ss]ystem\*\*:\s*(.+)', line)
                 if match:
                     val = match.group(1).strip().lower()
-                    if val in ("persona", "claude_md", "pipeline", "preference", "routing", "skill", "schedule", "agent"):
+                    if val in ("claude_md", "pipeline", "preference", "routing", "skill", "schedule", "agent"):
                         current_rec.target_system = val
-
-            # Target persona: - **Target Persona**: christensen
-            elif "**target persona**" in lower_line or "**target_persona**" in lower_line:
-                match = re.search(r'\*\*[Tt]arget[_ ][Pp]ersona\*\*:\s*(.+)', line)
-                if match:
-                    current_rec.target_persona = match.group(1).strip()
 
             # Target agent: - **Target Agent**: galvatron
             elif "**target agent**" in lower_line or "**target_agent**" in lower_line:
                 match = re.search(r'\*\*[Tt]arget[_ ][Aa]gent\*\*:\s*(.+)', line)
                 if match:
                     current_rec.target_agent = match.group(1).strip()
-
-            # Target department: - **Target Department**: engineering
-            elif "**target department**" in lower_line or "**target_department**" in lower_line:
-                match = re.search(r'\*\*[Tt]arget[_ ][Dd]epartment\*\*:\s*(.+)', line)
-                if match:
-                    current_rec.target_department = match.group(1).strip()
 
             # Recommendation type
             elif "**recommendation type**" in lower_line or "**recommendation_type**" in lower_line:
