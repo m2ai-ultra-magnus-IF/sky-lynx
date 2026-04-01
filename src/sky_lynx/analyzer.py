@@ -623,13 +623,18 @@ def main() -> int:
                     proposed_value=rec.suggested_change,
                     rationale=rec.evidence,
                 )
-                # Auto-accept high-confidence pipeline proposals
-                if (
-                    rec.priority == "high"
-                    and rec.reversibility == "high"
-                    and rec.evidence
+                # Auto-accept pipeline proposals with sufficient confidence:
+                # - High priority always qualifies (with high reversibility)
+                # - Medium priority qualifies only if highly reversible
+                _eligible = (
+                    rec.evidence
                     and len(rec.evidence) >= 40
-                ):
+                    and (
+                        (rec.priority == "high" and rec.reversibility in ("high", "medium"))
+                        or (rec.priority == "medium" and rec.reversibility == "high")
+                    )
+                )
+                if _eligible:
                     tracker.accept(proposal_id)
                     auto_accepted += 1
                     logger.info(
