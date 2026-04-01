@@ -17,11 +17,42 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+QUALITY_THRESHOLD = 40
+
 DEFAULT_SKILLS_DIR = Path.home() / ".claude" / "skills"
 DEFAULT_TELEMETRY_PATH = Path.home() / "projects" / "claudeclaw" / "store" / "telemetry.jsonl"
+
+
+def _load_latest_audit_report(skills_dir: Path) -> dict[str, Any] | None:
+    """Load the most recent skill-maintenance audit report.
+
+    Args:
+        skills_dir: Path to the skills directory (e.g. ~/.claude/skills/).
+
+    Returns:
+        Parsed report dict, or None if no valid report found.
+    """
+    reports_dir = skills_dir / "skill-maintenance" / "reports"
+    if not reports_dir.exists():
+        return None
+
+    reports = sorted(reports_dir.glob("audit-*.json"))
+    if not reports:
+        logger.warning("Audit reports directory exists but is empty: %s", reports_dir)
+        return None
+
+    latest = reports[-1]
+    try:
+        with open(latest) as f:
+            data: dict[str, Any] = json.load(f)
+            return data
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Could not parse audit report %s: %s", latest, e)
+        return None
 
 
 def load_skill_data(
@@ -108,6 +139,22 @@ def load_skill_data(
         s for s in deployed if data["usage_counts"].get(s, 0) > 0
     ]
 
+    # Quality scores from skill-maintenance audit reports
+    report = _load_latest_audit_report(skills_dir)
+    if report:
+        data["quality_scores"] = {
+            r["name"]: r["score"] for r in report.get("results", [])
+        }
+        data["quality_report_date"] = report.get("timestamp")
+        data["low_quality_used"] = [
+            s for s in data["used_skills"]
+            if data["quality_scores"].get(s, 100) < QUALITY_THRESHOLD
+        ]
+    else:
+        data["quality_scores"] = {}
+        data["quality_report_date"] = None
+        data["low_quality_used"] = []
+
     return data
 
 
@@ -130,6 +177,9 @@ def build_skill_digest(data: dict) -> str:
     unused = data.get("unused_skills", [])
     used = data.get("used_skills", [])
     usage = data.get("usage_counts", {})
+    quality = data.get("quality_scores", {})
+    quality_date = data.get("quality_report_date")
+    low_quality_used = data.get("low_quality_used", [])
 
     lines = [
         f"**Deployed Skills**: {total}",
@@ -141,7 +191,10 @@ def build_skill_digest(data: dict) -> str:
     if used:
         lines.append("**Skill Usage**:")
         for skill in sorted(used, key=lambda s: -usage.get(s, 0)):
-            lines.append(f"  - {skill}: {usage[skill]} events")
+            if skill in quality:
+                lines.append(f"  - {skill}: {usage[skill]} events (quality: {quality[skill]}/100)")
+            else:
+                lines.append(f"  - {skill}: {usage[skill]} events")
         lines.append("")
 
     # Unused skills
@@ -149,5 +202,20 @@ def build_skill_digest(data: dict) -> str:
         lines.append("**Unused Skills** (candidates for improvement or removal):")
         for skill in unused:
             lines.append(f"  - {skill}")
+        lines.append("")
+
+    # Content quality section
+    if quality:
+        lines.append(f"**Content Quality** (report: {quality_date}):")
+        lines.append("")
+
+    # Low quality + high usage alerts
+    if low_quality_used:
+        lines.append("**Low Quality + High Usage**:")
+        for skill in low_quality_used:
+            lines.append(
+                f"  - {skill}: quality {quality[skill]}/100, "
+                f"{usage.get(skill, 0)} events — improvement recommended"
+            )
 
     return "\n".join(lines)

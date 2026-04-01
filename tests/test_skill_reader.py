@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from sky_lynx.skill_reader import build_skill_digest, load_skill_data
+from sky_lynx.skill_reader import (
+    QUALITY_THRESHOLD,
+    _load_latest_audit_report,
+    build_skill_digest,
+    load_skill_data,
+)
 
 
 @pytest.fixture
@@ -103,3 +108,111 @@ class TestBuildSkillDigest:
     def test_digest_no_skills(self):
         digest = build_skill_digest({"total_deployed": 0})
         assert "No skills" in digest
+
+
+def _make_audit_report(skills: list[dict], timestamp: str = "2026-03-31T00:00:00Z") -> dict:
+    """Helper to build a minimal audit report."""
+    return {
+        "timestamp": timestamp,
+        "schema_version": "1.0",
+        "total_skills": len(skills),
+        "results": skills,
+    }
+
+
+class TestQualityScores:
+    """Tests for quality score integration from audit reports."""
+
+    def _setup_report(self, skills_dir: Path, report_data: dict, filename: str = "audit-2026-03-31.json"):
+        """Write an audit report into the skill-maintenance/reports/ dir."""
+        reports_dir = skills_dir / "skill-maintenance" / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        (reports_dir / filename).write_text(json.dumps(report_data))
+
+    def test_quality_scores_loaded(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        report = _make_audit_report([
+            {"name": "context-fork-guide", "score": 85},
+            {"name": "context-hygiene", "score": 30},
+        ])
+        self._setup_report(skills_dir, report)
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert data["quality_scores"]["context-fork-guide"] == 85
+        assert data["quality_scores"]["context-hygiene"] == 30
+        assert data["quality_report_date"] == "2026-03-31T00:00:00Z"
+
+    def test_quality_scores_missing(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        # No reports dir created
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert data["quality_scores"] == {}
+        assert data["quality_report_date"] is None
+
+    def test_low_quality_used_flagged(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        report = _make_audit_report([
+            {"name": "context-fork-guide", "score": 25},  # used (2 events) + low quality
+            {"name": "l5-sprint", "score": 35},            # used (1 event) + low quality
+        ])
+        self._setup_report(skills_dir, report)
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert "context-fork-guide" in data["low_quality_used"]
+        assert "l5-sprint" in data["low_quality_used"]
+
+    def test_low_quality_unused_not_flagged(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        report = _make_audit_report([
+            {"name": "context-hygiene", "score": 10},  # unused + low quality
+        ])
+        self._setup_report(skills_dir, report)
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert "context-hygiene" not in data["low_quality_used"]
+
+    def test_digest_includes_quality(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        report = _make_audit_report([
+            {"name": "context-fork-guide", "score": 85},
+        ])
+        self._setup_report(skills_dir, report)
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        digest = build_skill_digest(data)
+        assert "quality: 85/100" in digest
+        assert "**Content Quality**" in digest
+
+    def test_digest_omits_quality_when_missing(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        data = load_skill_data(skills_dir, telemetry_path)
+        digest = build_skill_digest(data)
+        assert "Content Quality" not in digest
+        assert "quality:" not in digest
+
+    def test_latest_report_selection(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        old_report = _make_audit_report(
+            [{"name": "context-fork-guide", "score": 10}],
+            timestamp="2026-03-29T00:00:00Z",
+        )
+        new_report = _make_audit_report(
+            [{"name": "context-fork-guide", "score": 90}],
+            timestamp="2026-03-31T00:00:00Z",
+        )
+        self._setup_report(skills_dir, old_report, "audit-2026-03-29.json")
+        self._setup_report(skills_dir, new_report, "audit-2026-03-31.json")
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert data["quality_scores"]["context-fork-guide"] == 90
+        assert data["quality_report_date"] == "2026-03-31T00:00:00Z"
+
+    def test_malformed_report_handled(self, skill_env: tuple[Path, Path]):
+        skills_dir, telemetry_path = skill_env
+        reports_dir = skills_dir / "skill-maintenance" / "reports"
+        reports_dir.mkdir(parents=True)
+        (reports_dir / "audit-2026-03-31.json").write_text("NOT VALID JSON {{{")
+
+        data = load_skill_data(skills_dir, telemetry_path)
+        assert data["quality_scores"] == {}
+        assert data["quality_report_date"] is None
