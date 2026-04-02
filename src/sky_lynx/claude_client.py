@@ -96,6 +96,7 @@ def build_analysis_prompt(
     preference_digest: str | None = None,
     mission_digest: str | None = None,
     skill_digest: str | None = None,
+    starscream_digest: str | None = None,
     cost_digest: str | None = None,
     agent_context_digest: str | None = None,
     agent_effectiveness_digest: str | None = None,
@@ -114,6 +115,7 @@ def build_analysis_prompt(
         preference_digest: Optional digest of ClaudeClaw preference profile state
         mission_digest: Optional digest of ClaudeClaw mission performance
         skill_digest: Optional digest of deployed skill inventory and usage
+        starscream_digest: Optional digest of Starscream LinkedIn post performance
         cost_digest: Optional digest of ClaudeClaw token costs
         agent_context_digest: Optional digest of agent registry metadata
         agent_effectiveness_digest: Optional digest of agent patch effectiveness
@@ -200,6 +202,16 @@ def build_analysis_prompt(
             "Deployed Claude Code skills vs actual usage. Identify unused skills for improvement "
             "or removal, and gaps where new skills are needed.",
             skill_digest,
+            "",
+        ])
+
+    if starscream_digest:
+        prompt_parts.extend([
+            "## Starscream LinkedIn Performance",
+            "Post engagement, topic performance, and follower trends for the autonomous LinkedIn "
+            "content pipeline. Use this to recommend content strategy adjustments -- topic angles "
+            "to pursue or drop, post types that outperform, opener patterns that fail.",
+            starscream_digest,
             "",
         ])
 
@@ -419,6 +431,7 @@ def analyze_insights(
     preference_digest: str | None = None,
     mission_digest: str | None = None,
     skill_digest: str | None = None,
+    starscream_digest: str | None = None,
     cost_digest: str | None = None,
     agent_context_digest: str | None = None,
     agent_effectiveness_digest: str | None = None,
@@ -481,7 +494,7 @@ def analyze_insights(
         metrics_summary, friction_details, outcome_digest, ideaforge_digest,
         research_digest, telemetry_digest, taste_digest, effectiveness_digest,
         pipeline_health_digest, preference_digest, mission_digest,
-        skill_digest, cost_digest, agent_context_digest,
+        skill_digest, starscream_digest, cost_digest, agent_context_digest,
         agent_effectiveness_digest,
     )
 

@@ -45,6 +45,7 @@ from .proposal_tracker import ProposalTracker
 from .report_writer import write_weekly_report
 from .research_reader import build_research_digest, load_research_signals
 from .skill_reader import build_skill_digest, load_skill_data
+from .starscream_reader import build_starscream_digest, load_starscream_data
 from .taste_reader import build_taste_digest, load_taste_data
 from .telemetry_reader import build_telemetry_digest, load_telemetry_data
 
@@ -334,6 +335,22 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load skill data: {e}")
 
+    # Load Starscream LinkedIn analytics
+    starscream_digest = None
+    try:
+        starscream_data = load_starscream_data()
+        if starscream_data:
+            starscream_digest = build_starscream_digest(starscream_data)
+            logger.info(
+                "Loaded Starscream data: %d posts, %d followers",
+                starscream_data.get("total_posts", 0),
+                starscream_data.get("current_followers", 0),
+            )
+        else:
+            logger.info("No Starscream analytics data available")
+    except Exception as e:
+        logger.warning(f"Could not load Starscream analytics: {e}")
+
     # Load agent registry context (registry.yaml for all agents)
     agent_context_digest = None
     try:
@@ -399,6 +416,7 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
         preference_digest=preference_digest,
         mission_digest=mission_digest,
         skill_digest=skill_digest,
+        starscream_digest=starscream_digest,
         cost_digest=cost_digest,
         agent_context_digest=agent_context_digest,
         agent_effectiveness_digest=agent_effectiveness_digest,
