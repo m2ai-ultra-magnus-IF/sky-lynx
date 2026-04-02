@@ -188,11 +188,19 @@ def _load_agent_context() -> str | None:
     return "## Agent Registry Context\n\n" + "\n".join(parts)
 
 
-def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
-    """Run the full analysis pipeline.
+def run_analysis(
+    dry_run: bool = False,
+    scope: str = "full",
+    trigger_context: str | None = None,
+) -> tuple[TrendAnalysis, AnalysisResult]:
+    """Run the analysis pipeline.
 
     Args:
         dry_run: If True, skip API calls
+        scope: "full" for all 15 data sources, "pipeline" for scoped analysis
+            (metroplex, outcome, ideaforge only)
+        trigger_context: If set, included in Claude prompt to explain why
+            this analysis was triggered reactively
 
     Returns:
         Tuple of (TrendAnalysis, AnalysisResult)
@@ -235,41 +243,44 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load IdeaForge data: {e}")
 
-    # Load research signals from Snow-Town
+    # Sources below are skipped in "pipeline" scope (reactive triggers)
     research_digest = None
-    try:
-        research_data = load_research_signals()
-        if research_data and research_data.get("total_signals", 0) > 0:
-            research_digest = build_research_digest(research_data)
-            logger.info(f"Loaded research signals: {research_data.get('total_signals', 0)} total")
-        else:
-            logger.info("No research signals available yet")
-    except Exception as e:
-        logger.warning(f"Could not load research signals: {e}")
-
-    # Load taste profile delta
     taste_digest = None
-    try:
-        taste_data = load_taste_data()
-        if taste_data:
-            taste_digest = build_taste_digest(taste_data)
-            logger.info(f"Loaded taste delta from {taste_data['report_date']}")
-        else:
-            logger.info("No taste profile data available yet")
-    except Exception as e:
-        logger.warning(f"Could not load taste data: {e}")
-
-    # Load Data (ClaudeClaw) telemetry
     telemetry_digest = None
-    try:
-        telemetry_data = load_telemetry_data()
-        if telemetry_data:
-            telemetry_digest = build_telemetry_digest(telemetry_data)
-            logger.info(f"Loaded telemetry data: {telemetry_data.get('total_events', 0)} events")
-        else:
-            logger.info("No telemetry data available from Data")
-    except Exception as e:
-        logger.warning(f"Could not load telemetry data: {e}")
+
+    if scope == "full":
+        # Load research signals from Snow-Town
+        try:
+            research_data = load_research_signals()
+            if research_data and research_data.get("total_signals", 0) > 0:
+                research_digest = build_research_digest(research_data)
+                logger.info(f"Loaded research signals: {research_data.get('total_signals', 0)} total")
+            else:
+                logger.info("No research signals available yet")
+        except Exception as e:
+            logger.warning(f"Could not load research signals: {e}")
+
+        # Load taste profile delta
+        try:
+            taste_data = load_taste_data()
+            if taste_data:
+                taste_digest = build_taste_digest(taste_data)
+                logger.info(f"Loaded taste delta from {taste_data['report_date']}")
+            else:
+                logger.info("No taste profile data available yet")
+        except Exception as e:
+            logger.warning(f"Could not load taste data: {e}")
+
+        # Load Data (ClaudeClaw) telemetry
+        try:
+            telemetry_data = load_telemetry_data()
+            if telemetry_data:
+                telemetry_digest = build_telemetry_digest(telemetry_data)
+                logger.info(f"Loaded telemetry data: {telemetry_data.get('total_events', 0)} events")
+            else:
+                logger.info("No telemetry data available from Data")
+        except Exception as e:
+            logger.warning(f"Could not load telemetry data: {e}")
 
     # Load Metroplex pipeline health metrics
     pipeline_health_digest = None
@@ -287,118 +298,131 @@ def run_analysis(dry_run: bool = False) -> tuple[TrendAnalysis, AnalysisResult]:
     except Exception as e:
         logger.warning(f"Could not load Metroplex data: {e}")
 
-    # Load ClaudeClaw preference profile
+    # Remaining sources skipped in "pipeline" scope
     preference_digest = None
-    try:
-        preference_data = load_preference_data()
-        if preference_data:
-            preference_digest = build_preference_digest(preference_data)
-            logger.info(f"Loaded preference data: {preference_data.get('total', 0)} preferences")
-        else:
-            logger.info("No preference data available")
-    except Exception as e:
-        logger.warning(f"Could not load preference data: {e}")
-
-    # Load ClaudeClaw mission performance
     mission_digest = None
-    try:
-        mission_data = load_mission_data()
-        if mission_data:
-            mission_digest = build_mission_digest(mission_data)
-            logger.info(f"Loaded mission data: {mission_data.get('total_missions', 0)} missions")
-        else:
-            logger.info("No mission data available")
-    except Exception as e:
-        logger.warning(f"Could not load mission data: {e}")
-
-    # Load ClaudeClaw token costs
     cost_digest = None
-    try:
-        cost_data = load_cost_data()
-        if cost_data:
-            cost_digest = build_cost_digest(cost_data)
-            logger.info(f"Loaded cost data: ${cost_data.get('total_cost', 0):.2f} this week")
-        else:
-            logger.info("No cost data available")
-    except Exception as e:
-        logger.warning(f"Could not load cost data: {e}")
-
-    # Load skill inventory and usage
     skill_digest = None
-    try:
-        skill_data = load_skill_data()
-        if skill_data:
-            skill_digest = build_skill_digest(skill_data)
-            logger.info(f"Loaded skill data: {skill_data.get('total_deployed', 0)} skills deployed")
-        else:
-            logger.info("No skill data available")
-    except Exception as e:
-        logger.warning(f"Could not load skill data: {e}")
-
-    # Load Starscream LinkedIn analytics
     starscream_digest = None
-    try:
-        starscream_data = load_starscream_data()
-        if starscream_data:
-            starscream_digest = build_starscream_digest(starscream_data)
-            logger.info(
-                "Loaded Starscream data: %d posts, %d followers",
-                starscream_data.get("total_posts", 0),
-                starscream_data.get("current_followers", 0),
-            )
-        else:
-            logger.info("No Starscream analytics data available")
-    except Exception as e:
-        logger.warning(f"Could not load Starscream analytics: {e}")
-
-    # Load agent registry context (registry.yaml for all agents)
     agent_context_digest = None
-    try:
-        agent_context_digest = _load_agent_context()
-        if agent_context_digest:
-            logger.info("Loaded agent registry context for analysis")
-        else:
-            logger.info("No agent registry context available")
-    except Exception as e:
-        logger.warning(f"Could not load agent registry context: {e}")
-
-    # Evaluate effectiveness of past recommendations (before analysis, so results inform it)
     effectiveness_digest = None
-    if not dry_run:
-        try:
-            eval_results = run_effectiveness_evaluation()
-            if eval_results:
-                logger.info(f"Evaluated {len(eval_results)} past recommendations")
-        except Exception as e:
-            logger.warning(f"Could not run effectiveness evaluation: {e}")
-
-    try:
-        effectiveness_digest = build_effectiveness_digest()
-        if effectiveness_digest:
-            logger.info("Loaded effectiveness digest for analysis context")
-        else:
-            logger.info("No past effectiveness data available yet")
-    except Exception as e:
-        logger.warning(f"Could not build effectiveness digest: {e}")
-
-    # Evaluate effectiveness of past agent patches
     agent_effectiveness_digest = None
-    if not dry_run:
-        try:
-            agent_eval_results = run_agent_effectiveness_evaluation()
-            if agent_eval_results:
-                logger.info(f"Evaluated {len(agent_eval_results)} past agent patches")
-        except Exception as e:
-            logger.warning(f"Could not run agent effectiveness evaluation: {e}")
 
-    try:
-        agent_effectiveness_digest = build_agent_effectiveness_digest()
-        if agent_effectiveness_digest:
-            logger.info("Loaded agent effectiveness digest for analysis context")
-        else:
-            logger.info("No agent effectiveness data available yet")
-    except Exception as e:
-        logger.warning(f"Could not build agent effectiveness digest: {e}")
+    if scope == "full":
+        # Load ClaudeClaw preference profile
+        try:
+            preference_data = load_preference_data()
+            if preference_data:
+                preference_digest = build_preference_digest(preference_data)
+                logger.info(f"Loaded preference data: {preference_data.get('total', 0)} preferences")
+            else:
+                logger.info("No preference data available")
+        except Exception as e:
+            logger.warning(f"Could not load preference data: {e}")
+
+        # Load ClaudeClaw mission performance
+        try:
+            mission_data = load_mission_data()
+            if mission_data:
+                mission_digest = build_mission_digest(mission_data)
+                logger.info(f"Loaded mission data: {mission_data.get('total_missions', 0)} missions")
+            else:
+                logger.info("No mission data available")
+        except Exception as e:
+            logger.warning(f"Could not load mission data: {e}")
+
+        # Load ClaudeClaw token costs
+        try:
+            cost_data = load_cost_data()
+            if cost_data:
+                cost_digest = build_cost_digest(cost_data)
+                logger.info(f"Loaded cost data: ${cost_data.get('total_cost', 0):.2f} this week")
+            else:
+                logger.info("No cost data available")
+        except Exception as e:
+            logger.warning(f"Could not load cost data: {e}")
+
+        # Load skill inventory and usage
+        try:
+            skill_data = load_skill_data()
+            if skill_data:
+                skill_digest = build_skill_digest(skill_data)
+                logger.info(f"Loaded skill data: {skill_data.get('total_deployed', 0)} skills deployed")
+            else:
+                logger.info("No skill data available")
+        except Exception as e:
+            logger.warning(f"Could not load skill data: {e}")
+
+        # Load Starscream LinkedIn analytics
+        try:
+            starscream_data = load_starscream_data()
+            if starscream_data:
+                starscream_digest = build_starscream_digest(starscream_data)
+                logger.info(
+                    "Loaded Starscream data: %d posts, %d followers",
+                    starscream_data.get("total_posts", 0),
+                    starscream_data.get("current_followers", 0),
+                )
+            else:
+                logger.info("No Starscream analytics data available")
+        except Exception as e:
+            logger.warning(f"Could not load Starscream analytics: {e}")
+
+        # Load agent registry context (registry.yaml for all agents)
+        try:
+            agent_context_digest = _load_agent_context()
+            if agent_context_digest:
+                logger.info("Loaded agent registry context for analysis")
+            else:
+                logger.info("No agent registry context available")
+        except Exception as e:
+            logger.warning(f"Could not load agent registry context: {e}")
+
+        # Evaluate effectiveness of past recommendations (before analysis, so results inform it)
+        if not dry_run:
+            try:
+                eval_results = run_effectiveness_evaluation()
+                if eval_results:
+                    logger.info(f"Evaluated {len(eval_results)} past recommendations")
+            except Exception as e:
+                logger.warning(f"Could not run effectiveness evaluation: {e}")
+
+        try:
+            effectiveness_digest = build_effectiveness_digest()
+            if effectiveness_digest:
+                logger.info("Loaded effectiveness digest for analysis context")
+            else:
+                logger.info("No past effectiveness data available yet")
+        except Exception as e:
+            logger.warning(f"Could not build effectiveness digest: {e}")
+
+        # Evaluate effectiveness of past agent patches
+        if not dry_run:
+            try:
+                agent_eval_results = run_agent_effectiveness_evaluation()
+                if agent_eval_results:
+                    logger.info(f"Evaluated {len(agent_eval_results)} past agent patches")
+            except Exception as e:
+                logger.warning(f"Could not run agent effectiveness evaluation: {e}")
+
+        try:
+            agent_effectiveness_digest = build_agent_effectiveness_digest()
+            if agent_effectiveness_digest:
+                logger.info("Loaded agent effectiveness digest for analysis context")
+            else:
+                logger.info("No agent effectiveness data available yet")
+        except Exception as e:
+            logger.warning(f"Could not build agent effectiveness digest: {e}")
+
+    # Inject trigger context into metrics summary for reactive runs
+    if trigger_context:
+        metrics_summary = (
+            f"## REACTIVE TRIGGER (event-driven, not scheduled)\n"
+            f"**Trigger reason**: {trigger_context}\n"
+            f"**Analysis scope**: pipeline (Metroplex + IdeaForge + outcomes only)\n"
+            f"Focus recommendations on pipeline health and build success.\n\n"
+            + metrics_summary
+        )
 
     # Run Claude analysis
     logger.info("Running Claude analysis..." if not dry_run else "Dry run - skipping API call")
@@ -494,6 +518,14 @@ def main() -> int:
     reject_parser = subparsers.add_parser("reject-proposal", help="Reject a pipeline config proposal")
     reject_parser.add_argument("proposal_id", type=int, help="Proposal ID to reject")
 
+    # Event-driven trigger check (Phase F)
+    trigger_parser = subparsers.add_parser("check-triggers", help="Check for pipeline events and run scoped analysis if triggered")
+    trigger_parser.add_argument("--dry-run", action="store_true", help="Skip API calls")
+    trigger_parser.add_argument("--force", action="store_true", help="Ignore cooldown")
+    trigger_parser.add_argument("--auto-apply", action="store_true", help="Auto-apply eligible rules")
+    trigger_parser.add_argument("--no-pr", action="store_true", help="Skip PR creation")
+    trigger_parser.add_argument("--cooldown-hours", type=float, default=12.0, help="Cooldown period in hours (default: 12)")
+
     # Legacy flags (for backward compatibility when no subcommand given)
     parser.add_argument("--dry-run", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-pr", action="store_true", help=argparse.SUPPRESS)
@@ -557,6 +589,71 @@ def main() -> int:
             print(f"Proposal #{args.proposal_id} not found or already resolved.")
         tracker.close()
         return 0
+
+    # Handle check-triggers (Phase F event-driven)
+    if args.command == "check-triggers":
+        from .trigger_listener import (
+            evaluate_triggers, check_cooldown, record_trigger, cleanup_events,
+        )
+
+        trigger = evaluate_triggers()
+        if trigger is None:
+            logger.info("No trigger conditions met")
+            cleanup_events()
+            return 0
+
+        if not args.force and not check_cooldown(cooldown_hours=args.cooldown_hours):
+            logger.info("Trigger conditions met but cooldown active: %s", trigger.reason)
+            return 0
+
+        logger.info("TRIGGERED: %s", trigger.reason)
+        logger.info("=" * 60)
+        logger.info(f"Sky-Lynx v{__version__} REACTIVE RUN at {datetime.now().isoformat()}")
+        logger.info("=" * 60)
+
+        try:
+            trend_analysis, analysis_result = run_analysis(
+                dry_run=args.dry_run,
+                scope=trigger.scope,
+                trigger_context=trigger.reason,
+            )
+            record_trigger()
+            cleanup_events()
+
+            # Reuse existing output pipeline
+            auto_applied_titles = set()
+            if args.auto_apply and not args.dry_run:
+                try:
+                    applied = auto_apply_recommendations(
+                        analysis_result.recommendations,
+                        session_id=f"sky-lynx-trigger-{datetime.now().strftime('%Y-%m-%d-%H%M')}",
+                    )
+                    auto_applied_titles = {r.title for r in applied}
+                    logger.info("Auto-applied %d rules", len(applied))
+                except Exception as e:
+                    logger.warning(f"Auto-apply failed: {e}")
+
+            # Write report
+            report_path = write_weekly_report(trend_analysis, analysis_result)
+            logger.info(f"Report written to: {report_path}")
+
+            # Create PR (unless suppressed)
+            if not args.no_pr and not args.dry_run:
+                try:
+                    pr_url = create_draft_pr(
+                        analysis_result,
+                        exclude_titles=auto_applied_titles,
+                    )
+                    if pr_url:
+                        logger.info(f"Draft PR created: {pr_url}")
+                except Exception as e:
+                    logger.warning(f"PR creation failed: {e}")
+
+            logger.info("Reactive analysis complete")
+            return 0
+        except Exception as e:
+            logger.error(f"Reactive analysis failed: {e}", exc_info=True)
+            return 1
 
     logger.info("=" * 60)
     logger.info(f"Sky-Lynx v{__version__} starting at {datetime.now().isoformat()}")
