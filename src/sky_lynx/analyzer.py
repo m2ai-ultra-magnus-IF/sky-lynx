@@ -48,6 +48,7 @@ from .skill_reader import build_skill_digest, load_skill_data
 from .starscream_reader import build_starscream_digest, load_starscream_data
 from .taste_reader import build_taste_digest, load_taste_data
 from .telemetry_reader import build_telemetry_digest, load_telemetry_data
+from .model_audit_reader import build_model_audit_digest, load_model_audit_data
 
 # Load environment variables
 load_dotenv()
@@ -307,6 +308,7 @@ def run_analysis(
     agent_context_digest = None
     effectiveness_digest = None
     agent_effectiveness_digest = None
+    model_audit_digest = None
 
     if scope == "full":
         # Load ClaudeClaw preference profile
@@ -414,6 +416,23 @@ def run_analysis(
         except Exception as e:
             logger.warning(f"Could not build agent effectiveness digest: {e}")
 
+        # Run model audit benchmarks (monthly cadence -- skip if last run < 30 days)
+        try:
+            model_audit_data = load_model_audit_data()
+            if model_audit_data:
+                model_audit_digest = build_model_audit_digest(model_audit_data)
+                logger.info(
+                    "Model audit: %d benchmarks, %d/%d checks passed, %d critical failures",
+                    model_audit_data.get("total_benchmarks", 0),
+                    model_audit_data.get("total_pass", 0),
+                    model_audit_data.get("total_checks", 0),
+                    model_audit_data.get("critical_failures", 0),
+                )
+            else:
+                logger.info("No model audit data (runner not available or no results)")
+        except Exception as e:
+            logger.warning(f"Could not run model audit: {e}")
+
     # Inject trigger context into metrics summary for reactive runs
     if trigger_context:
         metrics_summary = (
@@ -444,6 +463,7 @@ def run_analysis(
         cost_digest=cost_digest,
         agent_context_digest=agent_context_digest,
         agent_effectiveness_digest=agent_effectiveness_digest,
+        model_audit_digest=model_audit_digest,
     )
 
     logger.info(f"Got {len(analysis_result.recommendations)} recommendations")

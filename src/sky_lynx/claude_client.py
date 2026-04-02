@@ -100,6 +100,7 @@ def build_analysis_prompt(
     cost_digest: str | None = None,
     agent_context_digest: str | None = None,
     agent_effectiveness_digest: str | None = None,
+    model_audit_digest: str | None = None,
 ) -> str:
     """Build the user prompt for analysis.
 
@@ -239,6 +240,16 @@ def build_analysis_prompt(
             "**IMPORTANT**: Use agent patch effectiveness data to calibrate agent recommendations. "
             "Avoid patterns similar to past 'harmful' agent patches. "
             "Favor patterns similar to past 'effective' agent patches.",
+            "",
+        ])
+
+    if model_audit_digest:
+        prompt_parts.extend([
+            model_audit_digest,
+            "",
+            "**IMPORTANT**: If model audit shows critical failures, recommend evaluating "
+            "alternative models for the affected pipeline component. Do NOT recommend "
+            "changing model names directly -- recommend running /model-audit compare.",
             "",
         ])
 
@@ -435,6 +446,7 @@ def analyze_insights(
     cost_digest: str | None = None,
     agent_context_digest: str | None = None,
     agent_effectiveness_digest: str | None = None,
+    model_audit_digest: str | None = None,
 ) -> AnalysisResult:
     """Run Claude analysis on the insights data.
 
@@ -495,7 +507,7 @@ def analyze_insights(
         research_digest, telemetry_digest, taste_digest, effectiveness_digest,
         pipeline_health_digest, preference_digest, mission_digest,
         skill_digest, starscream_digest, cost_digest, agent_context_digest,
-        agent_effectiveness_digest,
+        agent_effectiveness_digest, model_audit_digest,
     )
 
     response = client.chat.completions.create(
