@@ -10,6 +10,7 @@ from sky_lynx.auto_applicator import (
     APPEND_MARKER,
     AutoApplyResult,
     CooldownState,
+    MAX_AUTO_CHANGES_PER_WEEK,
     _extract_existing_rules,
     _insert_before_marker,
     _insert_into_subsection,
@@ -140,16 +141,16 @@ class TestCooldown:
         with patch("sky_lynx.auto_applicator.STATE_DIR", tmp_path):
             can, remaining = check_cooldown()
             assert can is True
-            assert remaining == 3
+            assert remaining == MAX_AUTO_CHANGES_PER_WEEK
 
     def test_budget_exhausted(self, tmp_path: Path) -> None:
         cooldown_path = tmp_path / "cooldown.json"
         with patch("sky_lynx.auto_applicator.STATE_DIR", tmp_path), \
              patch("sky_lynx.auto_applicator._current_iso_week", return_value="2026-W09"):
             state = CooldownState(
-                changes_this_week=3,
+                changes_this_week=MAX_AUTO_CHANGES_PER_WEEK,
                 week_iso="2026-W09",
-                applied_titles=["a", "b", "c"],
+                applied_titles=[f"t{i}" for i in range(MAX_AUTO_CHANGES_PER_WEEK)],
             )
             cooldown_path.write_text(state.model_dump_json())
 
@@ -162,15 +163,15 @@ class TestCooldown:
         with patch("sky_lynx.auto_applicator.STATE_DIR", tmp_path), \
              patch("sky_lynx.auto_applicator._current_iso_week", return_value="2026-W10"):
             state = CooldownState(
-                changes_this_week=3,
+                changes_this_week=MAX_AUTO_CHANGES_PER_WEEK,
                 week_iso="2026-W09",
-                applied_titles=["a", "b", "c"],
+                applied_titles=[f"t{i}" for i in range(MAX_AUTO_CHANGES_PER_WEEK)],
             )
             cooldown_path.write_text(state.model_dump_json())
 
             can, remaining = check_cooldown()
             assert can is True
-            assert remaining == 3
+            assert remaining == MAX_AUTO_CHANGES_PER_WEEK
 
 
 # --- Validation Tests ---
