@@ -24,7 +24,7 @@ PIPELINE_MODELS = {
     "spec_expansion": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
     "idea_scoring": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
     "listing_copy": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
-    "qa_review": "gpt-4.1",
+    "qa_review": "gpt-5.4-mini",
 }
 
 # Map each component to its most relevant benchmark

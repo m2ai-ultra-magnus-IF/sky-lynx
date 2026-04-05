@@ -9,7 +9,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 # Default model for analysis (DeepInfra's Claude Sonnet)
-DEFAULT_MODEL = "anthropic/claude-4-sonnet"
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
 
 class Recommendation(BaseModel):
