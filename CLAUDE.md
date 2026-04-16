@@ -37,7 +37,7 @@ Sky-Lynx is a continuous improvement agent that:
 ```
 analyzer.py          # Main orchestration, CLI entry point
 insights_parser.py   # Read/aggregate facets/*.json
-claude_client.py     # Anthropic API calls with persona
+claude_client.py     # Shells out to `claude -p` so analysis runs under Max
 report_writer.py     # Markdown report generation
 pr_drafter.py        # GitHub PR via gh CLI
 ```
