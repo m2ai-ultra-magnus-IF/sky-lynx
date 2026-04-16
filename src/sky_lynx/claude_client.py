@@ -1,15 +1,18 @@
-"""DeepInfra API client for Sky-Lynx analysis.
+"""Claude Code CLI client for Sky-Lynx analysis.
 
-Wraps the OpenAI-compatible DeepInfra API with the Sky-Lynx system prompt.
+Runs analysis by shelling out to `claude -p` so usage flows through the Max
+subscription (first-party CLI session) rather than an external API key. The
+previous DeepInfra/OpenAI path broke on 2026-04-04 when Sky-Lynx was pointed at
+`anthropic/claude-sonnet-4-6`, a model DeepInfra does not host.
 """
 
-import os
+import json
+import shutil
+import subprocess
 
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
-# Default model for analysis (DeepInfra's Claude Sonnet)
-DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
+CLAUDE_CLI_TIMEOUT_SECONDS = 600
 
 
 class Recommendation(BaseModel):
@@ -74,10 +77,42 @@ Score by: impact (how much improvement), effort (how hard to implement), reversi
 
 ## Output Structure
 
-- **Executive Summary**: 2-3 sentence high-level assessment
-- **Friction Analysis**: Breakdown of identified issues with evidence
-- **Recommendations**: Prioritized list with evidence, suggested change, impact, reversibility
-- **What's Working Well**: Positive patterns to reinforce
+Produce markdown with these four top-level sections, in this exact order and
+with these exact headings (no numeric prefix on the heading itself — the
+downstream parser matches on the plain heading text).
+
+## Executive Summary
+2-3 sentences.
+
+## Friction Analysis
+Bullet list of identified issues with evidence.
+
+## Recommendations
+Every recommendation MUST appear under this section and follow this template
+exactly, or it will be dropped by the parser:
+
+```
+### High Priority
+
+**R1: Short imperative title**
+- **Evidence**: specific metric from the data
+- **Suggested Change**: concrete change to make
+- **Impact**: what improves and by roughly how much
+- **Reversibility**: High | Medium | Low
+- **Target System**: claude_md | pipeline | preference | routing | skill | schedule | agent
+- **Recommendation Type**: framework_addition | framework_refinement | voice_adjustment | other
+
+**R2: ...**
+- (same attributes)
+```
+
+Use `### Medium Priority` and `### Low Priority` for lower-priority groups.
+Include at least the `Evidence`, `Suggested Change`, `Impact`, and `Reversibility`
+lines for every recommendation. Do not collapse multiple recs into one. Never
+emit prose commentary between the section heading and the first `**R1:**`.
+
+## What's Working Well
+Positive patterns to reinforce.
 
 Synthesize across all data sources. Cross-reference pipeline health with usage patterns.
 Identify causal relationships, not just correlations."""
@@ -431,7 +466,6 @@ def analyze_insights(
     metrics_summary: str,
     friction_details: list[str],
     dry_run: bool = False,
-    api_key: str | None = None,
     outcome_digest: str | None = None,
     ideaforge_digest: str | None = None,
     research_digest: str | None = None,
@@ -454,7 +488,6 @@ def analyze_insights(
         metrics_summary: Formatted metrics summary
         friction_details: List of friction details
         dry_run: If True, skip API call and return mock result
-        api_key: Optional API key override
         outcome_digest: Optional digest of idea pipeline outcomes
         ideaforge_digest: Optional digest of IdeaForge market signals
         research_digest: Optional digest of research intelligence signals
@@ -489,18 +522,6 @@ def analyze_insights(
             raw_response="[DRY RUN]",
         )
 
-    # Get API key
-    key = api_key or os.environ.get("DEEPINFRA_API_KEY")
-    if not key:
-        raise ValueError(
-            "DEEPINFRA_API_KEY not found in environment. "
-            "Set it in .env or ~/.env.shared"
-        )
-
-    client = OpenAI(
-        api_key=key,
-        base_url="https://api.deepinfra.com/v1/openai",
-    )
     system_prompt = _get_system_prompt()
     user_prompt = build_analysis_prompt(
         metrics_summary, friction_details, outcome_digest, ideaforge_digest,
@@ -510,19 +531,8 @@ def analyze_insights(
         agent_effectiveness_digest, model_audit_digest,
     )
 
-    response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        max_tokens=4096,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    )
+    raw_response = _call_claude_cli(system_prompt, user_prompt)
 
-    # Extract text from response
-    raw_response = response.choices[0].message.content or ""
-
-    # Parse sections from response
     sections = _parse_response_sections(raw_response)
     recommendations = parse_recommendations(raw_response)
 
@@ -533,6 +543,70 @@ def analyze_insights(
         whats_working=sections.get("whats_working", ""),
         raw_response=raw_response,
     )
+
+
+def _call_claude_cli(system_prompt: str, user_prompt: str) -> str:
+    """Run the analysis prompt through `claude -p` and return its text result.
+
+    Uses --system-prompt to install the Sky-Lynx persona, --tools "" to forbid
+    tool use (this is a pure text-analysis task), and --no-session-persistence
+    so cron runs don't accumulate orphan session files. Auth is whatever the
+    host `claude` CLI is logged into (Max OAuth in the production cron).
+    """
+    cli = shutil.which("claude")
+    if not cli:
+        raise RuntimeError(
+            "`claude` CLI not found in PATH. Sky-Lynx now runs under Max via the "
+            "Claude Code CLI — install it or ensure PATH is set in the cron env."
+        )
+
+    cmd = [
+        cli,
+        "-p",
+        "--system-prompt", system_prompt,
+        "--output-format", "json",
+        "--tools", "",
+        "--no-session-persistence",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=user_prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_CLI_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"claude -p timed out after {CLAUDE_CLI_TIMEOUT_SECONDS}s"
+        ) from e
+
+    if proc.returncode != 0:
+        stderr_tail = (proc.stderr or "").strip()[-2000:]
+        raise RuntimeError(
+            f"claude -p exited {proc.returncode}: {stderr_tail or '<no stderr>'}"
+        )
+
+    stdout = proc.stdout or ""
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"claude -p returned non-JSON output: {stdout[:500]!r}"
+        ) from e
+
+    if payload.get("is_error"):
+        raise RuntimeError(
+            f"claude -p reported error: {payload.get('result') or payload}"
+        )
+
+    result = payload.get("result")
+    if not isinstance(result, str) or not result:
+        raise RuntimeError(
+            f"claude -p returned empty result field: {payload}"
+        )
+    return result
 
 
 def _parse_response_sections(response: str) -> dict[str, str]:
