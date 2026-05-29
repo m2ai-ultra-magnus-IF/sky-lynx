@@ -1,18 +1,36 @@
 """Agent effectiveness tracker for Sky-Lynx.
 
-Measures whether applied agent patches actually improved agent-specific metrics.
-Each agent has tailored metrics:
-  - Kup: build success rate, stuck build count (metroplex.db)
-  - Starscream: post engagement rate (starscream_analytics.db)
-  - Generic: mission task completion rate (claudeclaw.db)
+DISABLED 2026-05-28 (see fix/agent-effectiveness-tracker-successor):
+This module used to measure whether applied agent patches improved
+agent-specific metrics, reading the ST Records ``agent_patches`` table and
+calling ``ContractStore`` methods. That table was DEPRECATED 2026-05-12
+(CLEANUP-A Scope 2c; see ``st-records/DEPRECATED_TABLES.md``) and the
+``ContractStore`` methods it relied on
+(``get_applied_agent_patches_for_evaluation``,
+``update_agent_patch_effectiveness``, ``get_agent_effectiveness_summary``,
+``get_recent_agent_patches_with_scores``) were removed in the same cleanup.
+
+The declared successor — the R-B ``agent-promote`` script + ClaudeClaw
+skill-registry extension — is deferred to Pass 6 of the pivot and does NOT
+exist yet, so there is no live source of "applied agent patch + outcome"
+data to read. Rather than invent a data source, the public entry points
+(:func:`run_agent_effectiveness_evaluation` and
+:func:`build_agent_effectiveness_digest`) are short-circuited to a safe,
+no-op result. Both callers (``analyzer.py``, ``claude_client.py``) already
+guard on a falsy/empty digest, so this degrades gracefully.
+
+The per-agent metric readers and scoring helpers below are retained intact
+(they reference live DBs: metroplex.db build_jobs, claudeclaw.db
+mission_tasks, starscream_analytics.db engagement_snapshots) so that if/when
+a successor patch-tracking source lands, re-wiring the two entry points to a
+real list of applied patches is all that's required. They are currently
+unreachable from the public API.
 
 Scores -1.0 to 1.0, matching the existing effectiveness_tracker scale.
-Writes scores back to ST Records agent_patches table.
 """
 
 import logging
 import sqlite3
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -20,12 +38,11 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Import st-records contracts via path
-_st_records_path = str(Path.home() / "projects" / "st-records")
-if _st_records_path not in sys.path:
-    sys.path.insert(0, _st_records_path)
-
-from contracts.store import ContractStore  # noqa: E402, I001
+# Reason surfaced when the disabled entry points are invoked.
+_DISABLED_MSG = (
+    "agent effectiveness tracking disabled: agent_patches deprecated "
+    "2026-05-12, no successor source"
+)
 
 # Minimum days after application before evaluating
 MIN_DAYS_AFTER = 7
@@ -338,93 +355,25 @@ def evaluate_agent_patch(patch: dict) -> AgentEffectivenessResult | None:
 
 
 def run_agent_effectiveness_evaluation() -> list[AgentEffectivenessResult]:
-    """Evaluate all applied agent patches that haven't been scored yet."""
-    store = ContractStore()
-    try:
-        pending = store.get_applied_agent_patches_for_evaluation()
-        if not pending:
-            logger.info("No applied agent patches pending evaluation")
-            return []
+    """Evaluate all applied agent patches that haven't been scored yet.
 
-        logger.info(f"Evaluating effectiveness of {len(pending)} applied agent patches")
-        results = []
-
-        for patch in pending:
-            result = evaluate_agent_patch(patch)
-            if result is None:
-                continue
-
-            store.update_agent_patch_effectiveness(
-                patch_id=result.patch_id,
-                effectiveness=result.effectiveness,
-                effectiveness_score=result.effectiveness_score,
-                evaluated_at=datetime.now().isoformat(),
-            )
-            logger.info(
-                f"  {result.patch_id} ({result.agent_id}): {result.effectiveness} "
-                f"(score={result.effectiveness_score:.3f}) — {result.reasoning}"
-            )
-            results.append(result)
-
-        return results
-    finally:
-        store.close()
+    DISABLED: the ``agent_patches`` source table was deprecated 2026-05-12 and
+    no successor patch-tracking source exists yet. Returns an empty list
+    instead of calling removed ``ContractStore`` methods (which would raise
+    ``AttributeError``). The caller (``analyzer.py``) already treats an empty
+    result as "nothing to evaluate".
+    """
+    logger.info(_DISABLED_MSG)
+    return []
 
 
 def build_agent_effectiveness_digest() -> str | None:
     """Build a digest of agent patch effectiveness for inclusion in analysis.
 
-    Returns formatted digest or None if no data.
+    DISABLED: see :func:`run_agent_effectiveness_evaluation`. Returns ``None``
+    so the digest is omitted from the analysis prompt. Both callers
+    (``analyzer.py`` and ``claude_client.py``) guard on a truthy digest, so a
+    ``None`` return degrades gracefully.
     """
-    store = ContractStore()
-    try:
-        summary = store.get_agent_effectiveness_summary()
-        recent = store.get_recent_agent_patches_with_scores()
-
-        if not recent:
-            return None
-
-        lines = ["## Agent Patch Effectiveness", ""]
-
-        # Summary stats
-        if summary:
-            total_evaluated = sum(v["count"] for v in summary.values())
-            lines.append(f"**Total evaluated**: {total_evaluated}")
-            for eff_type in ["effective", "neutral", "harmful"]:
-                if eff_type in summary:
-                    count = summary[eff_type]["count"]
-                    avg = summary[eff_type]["avg_score"]
-                    pct = count / total_evaluated * 100
-                    lines.append(f"  - {eff_type}: {count} ({pct:.0f}%, avg score: {avg:.3f})")
-            lines.append("")
-
-        # Recent patches (scored and unscored)
-        lines.append("**Recent agent patches**:")
-        for row in recent[:10]:
-            status = row["status"]
-            agent = row["agent_id"]
-            section = row["section"]
-            if row["effectiveness"] is not None:
-                score = row["effectiveness_score"]
-                indicator = "+" if score > 0 else ""
-                lines.append(
-                    f"  - [{row['effectiveness']}] {agent}/{section} "
-                    f"({indicator}{score:.3f}, {row['operation']})"
-                )
-            else:
-                lines.append(
-                    f"  - [{status}] {agent}/{section} ({row['operation']}, not yet evaluated)"
-                )
-
-        # Guidance
-        harmful_count = summary.get("harmful", {}).get("count", 0) if summary else 0
-        if harmful_count > 0:
-            lines.append("")
-            lines.append(
-                f"**Note**: {harmful_count} agent patch(es) were scored as harmful. "
-                "Avoid similar patterns for that agent in future recommendations."
-            )
-
-        return "\n".join(lines)
-    finally:
-        store.close()
+    logger.info(_DISABLED_MSG)
+    return None
