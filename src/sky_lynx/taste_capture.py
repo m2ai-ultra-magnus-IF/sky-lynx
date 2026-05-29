@@ -26,9 +26,9 @@ CLAUDECLAW_DB = Path.home() / "projects/claudeclaw/store/claudeclaw.db"
 TASTE_PROFILE = Path.home() / ".claude/taste-profile.md"
 SNAPSHOTS_DIR = Path(__file__).parent.parent.parent / "data" / "taste-snapshots"
 HOOKIFY_DIR = Path.home() / ".claude"
-PROJECT_HOOKIFY_DIRS = [
-    Path.home() / "projects/ultra-magnus/.claude",
-]
+# ultra-magnus was removed 2026-03-15 (consolidated into Metroplex); its
+# .claude dir no longer exists. No active project-level hookify source today.
+PROJECT_HOOKIFY_DIRS: list[Path] = []
 
 # Correction patterns to search in user messages
 REJECTION_PATTERNS = [

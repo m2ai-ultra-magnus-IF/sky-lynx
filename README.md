@@ -13,7 +13,7 @@ Sky-Lynx runs weekly (Sundays 2 AM via cron) to:
 ## Installation
 
 ```bash
-cd /home/ubuntu/projects/sky-lynx
+cd /home/apexaipc/projects/sky-lynx
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"

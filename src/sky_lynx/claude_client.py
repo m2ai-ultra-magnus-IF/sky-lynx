@@ -317,8 +317,8 @@ def build_analysis_prompt(
             "4. Note what's working well that should be reinforced",
             "",
             "For EACH recommendation, classify it with:",
-            "- **target_system**: 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), 'schedule' (for scheduled task cadence changes), or 'agent' (for agent config changes — Galvatron, Starscream, Ravage, Soundwave, Scourge)",
-            "- **target_agent**: If target_system is 'agent', which agent (e.g., 'galvatron', 'starscream'). Required for agent recommendations.",
+            "- **target_system**: 'claude_md' (for CLAUDE.md changes), 'pipeline' (for process changes), 'preference' (for ClaudeClaw preference profile adjustments), 'routing' (for CMD agent routing weight changes), 'skill' (for skill improvements/deprecation), 'schedule' (for scheduled task cadence changes), or 'agent' (for agent config changes — Data, Soundwave, Kup, Ravage)",
+            "- **target_agent**: If target_system is 'agent', which agent (e.g., 'kup', 'soundwave'). Required for agent recommendations.",
             "- **recommendation_type**: One of: claude_md_update, pipeline_change, constraint_addition, constraint_removal, other",
             "",
             "Format your response with clear sections for:",
@@ -443,7 +443,7 @@ def parse_recommendations(response_text: str) -> list[Recommendation]:
                     if val in ("claude_md", "pipeline", "preference", "routing", "skill", "schedule", "agent"):
                         current_rec.target_system = val
 
-            # Target agent: - **Target Agent**: galvatron
+            # Target agent: - **Target Agent**: kup
             elif "**target agent**" in lower_line or "**target_agent**" in lower_line:
                 match = re.search(r'\*\*[Tt]arget[_ ][Aa]gent\*\*:\s*(.+)', line)
                 if match:

@@ -2,7 +2,7 @@
 
 Measures whether applied agent patches actually improved agent-specific metrics.
 Each agent has tailored metrics:
-  - Galvatron: build success rate, stuck build count (metroplex.db)
+  - Kup: build success rate, stuck build count (metroplex.db)
   - Starscream: post engagement rate (starscream_analytics.db)
   - Generic: mission task completion rate (claudeclaw.db)
 
@@ -71,11 +71,11 @@ def _score_change(before: float, after: float, higher_is_better: bool) -> float:
     return delta
 
 
-def _get_galvatron_metrics(
+def _get_kup_metrics(
     before_start: datetime, before_end: datetime,
     after_start: datetime, after_end: datetime,
 ) -> tuple[dict, dict] | None:
-    """Get Galvatron metrics from metroplex.db: build success rate."""
+    """Get Kup metrics from metroplex.db: build success rate."""
     conn = _safe_connect(METROPLEX_DB)
     if conn is None:
         return None
@@ -107,7 +107,7 @@ def _get_galvatron_metrics(
         after = _query_period(after_start, after_end)
 
         if before["total_builds"] < 2 or after["total_builds"] < 2:
-            logger.info("Galvatron: insufficient builds for comparison")
+            logger.info("Kup: insufficient builds for comparison")
             return None
 
         return before, after
@@ -201,8 +201,8 @@ def _get_generic_agent_metrics(
         conn.close()
 
 
-def _score_galvatron(before: dict, after: dict) -> tuple[float, str]:
-    """Score Galvatron patch based on build success rate change."""
+def _score_kup(before: dict, after: dict) -> tuple[float, str]:
+    """Score Kup patch based on build success rate change."""
     score = _score_change(before["success_rate"], after["success_rate"], higher_is_better=True)
     score = round(score, 3)
     parts = []
@@ -296,12 +296,12 @@ def evaluate_agent_patch(patch: dict) -> AgentEffectivenessResult | None:
     agent_id = patch["agent_id"]
 
     # Route to agent-specific metrics
-    if agent_id == "galvatron":
-        result = _get_galvatron_metrics(before_start, before_end, after_start, after_end)
+    if agent_id == "kup":
+        result = _get_kup_metrics(before_start, before_end, after_start, after_end)
         if result is None:
             return None
         before, after = result
-        score, reasoning = _score_galvatron(before, after)
+        score, reasoning = _score_kup(before, after)
     elif agent_id == "starscream":
         result = _get_starscream_metrics(before_start, before_end, after_start, after_end)
         if result is None:
